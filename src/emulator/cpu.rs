@@ -1,10 +1,27 @@
-struct CPU {
+
+
+const MASTER_CLOCK_FREQUENCY: u8 = 21477272; // Hz
+
+pub struct Cpu {
     accumulator: u8,
     x_index: u8,
     y_index: u8,
     status: Status,
     program_counter: u16,
     stack_pointer: u8
+}
+
+impl Default for Cpu {
+    fn default() -> Cpu {
+        Cpu {
+            accumulator: 0,
+            x_index: 0,
+            y_index: 0,
+            status: Status::default(),
+            program_counter: 0,
+            stack_pointer: 0
+        }
+    }
 }
 
 struct Status {
@@ -34,31 +51,26 @@ impl Default for Status {
 }
 
 
-
-
-
-
-
-impl CPU {
-    fn create_cpu() -> CPU {
-        let mut status = { ..Default::default() };
+impl Cpu {
+    fn create_cpu() -> Cpu {
+        let mut status = Status::default();
         
-        CPU {
+        Cpu {
             accumulator: 0,
             x_index: 0,
             y_index: 0,
-            status,
+            status: {Status::default()},
             program_counter: 0,
             stack_pointer: 0
         }
     }
 
-    fn get_status(&self, bit_index: u8): u8 { // This returns 1 if true, else 0. 
-        (self.status >> bit_index) & 1u8
+    fn read_8() -> u8 {
+        unimplemented!();
     }
 
-    fn set_status(mut &self, bit_index: u8, status: bool) {
-        self.stack_pointer = ( self.stack_pointer & !(1u8 << bit_index) ) | ((status as u8) << bit_index);
+    fn read_16() -> u16 {
+        unimplemented!();
     }
 
     fn step() {
@@ -67,4 +79,3 @@ impl CPU {
 
 
 }
-
