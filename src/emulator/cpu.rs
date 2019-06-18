@@ -1,6 +1,6 @@
 
 
-const MASTER_CLOCK_FREQUENCY: u8 = 21477272; // Hz
+const MASTER_CLOCK_FREQUENCY: u16 = 21477272; // Hz
 
 pub struct Cpu {
     accumulator: u8,
