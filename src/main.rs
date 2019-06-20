@@ -1,4 +1,4 @@
-mod emulator;
+pub mod emulator;
 
 fn main() {
     emulator::start();

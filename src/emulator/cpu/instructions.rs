@@ -11,7 +11,6 @@ enum Instruction {
 }
 use Instruction::*;
 
-
 enum AddressMode {
     INVALID,
     abs, abs_x, abs_y, // Absolute  (indexed)

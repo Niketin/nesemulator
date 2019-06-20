@@ -1,6 +1,10 @@
+pub mod bus;
+pub mod ram;
 
+use bus::Bus;
 
-const MASTER_CLOCK_FREQUENCY: u16 = 21477272; // Hz
+const MASTER_CLOCK_FREQUENCY: u32 = 21477272; // Hz
+
 
 pub struct Cpu {
     accumulator: u8,
@@ -8,20 +12,8 @@ pub struct Cpu {
     y_index: u8,
     status: Status,
     program_counter: u16,
-    stack_pointer: u8
-}
-
-impl Default for Cpu {
-    fn default() -> Cpu {
-        Cpu {
-            accumulator: 0,
-            x_index: 0,
-            y_index: 0,
-            status: Status::default(),
-            program_counter: 0,
-            stack_pointer: 0
-        }
-    }
+    stack_pointer: u8,
+    bus: Bus,
 }
 
 struct Status {
@@ -32,7 +24,7 @@ struct Status {
     something1: bool, // According to nesdev.com/6502.txt this is set when BRK instruction is executed.
     something2: bool,
     overflow: bool,
-    sign: bool
+    sign: bool,
 }
 
 impl Default for Status {
@@ -45,37 +37,37 @@ impl Default for Status {
             something1: false,
             something2: false,
             overflow: false,
-            sign: false
+            sign: false,
         }
     }
 }
 
 
 impl Cpu {
-    fn create_cpu() -> Cpu {
-        let mut status = Status::default();
-        
+    pub fn new(bus: Bus) -> Cpu {
+        let status = Status::default();
+
         Cpu {
             accumulator: 0,
             x_index: 0,
             y_index: 0,
-            status: {Status::default()},
+            status: { Status::default() },
             program_counter: 0,
-            stack_pointer: 0
+            stack_pointer: 0,
+            bus,
         }
     }
 
-    fn read_8() -> u8 {
+    fn read_8(&self) -> u8 {
         unimplemented!();
     }
 
-    fn read_16() -> u16 {
+    fn read_16(&self) -> u16 {
         unimplemented!();
     }
 
-    fn step() {
+    pub fn step(&mut self) {
         unimplemented!();
     }
-
 
 }
