@@ -1,7 +1,6 @@
-pub mod bus;
 pub mod ram;
 
-use bus::Bus;
+use crate::emulator::bus::Bus;
 
 const MASTER_CLOCK_FREQUENCY: u32 = 21477272; // Hz
 

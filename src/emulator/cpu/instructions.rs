@@ -19,7 +19,7 @@ enum AddressMode {
     imp, // Implied
     rel, // Relative
     acc, // Accumulator
-    imm // Immediate
+    imm  // Immediate
 }
 use AddressMode::*;
 

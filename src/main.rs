@@ -1,6 +1,10 @@
 pub mod emulator;
 
+use std::env;
+
+
 fn main() {
-    emulator::start();
+    let args: Vec<String> = env::args().collect();
+    emulator::run(&args[1]);
 }
 
