@@ -1,0 +1,103 @@
+use super::Cpu;
+
+#[allow(non_camel_case_types)]
+pub enum AddressMode {
+    Invalid,
+    Abs, AbsX, AbsY, // Absolute  (indexed)
+    Ind, IndX, IndY, // Indirect  (indexed)
+    Zpg, ZpgX, ZpgY, // Zero page (indexed)
+    Imp, // Implied
+    Rel, // Relative
+    Acc, // Accumulator
+    Imm  // Immediate
+}
+
+impl Cpu {
+    pub fn abs  (&mut self) -> u16 {
+        let address_low = self.read_8(self.program_counter) as u16;
+        self.program_counter += 1;
+        let address_high = self.read_8(self.program_counter) as u16;
+        self.program_counter += 1;
+        address_low + (address_high << 8)
+    }
+
+    pub fn abs_x(&mut self) -> u16 {
+        let address_low = self.read_8(self.program_counter) as u16;
+        self.program_counter += 1;
+        let address_high = self.read_8(self.program_counter) as u16;
+        self.program_counter += 1;
+        address_low + (address_high << 8) + (self.x_index as u16)
+    }
+
+    pub fn abs_y(&mut self) -> u16 {
+        let address_low = self.read_8(self.program_counter) as u16;
+        self.program_counter += 1;
+        let address_high = self.read_8(self.program_counter) as u16;
+        self.program_counter += 1;
+        address_low + (address_high << 8) + (self.y_index as u16)
+    }
+
+    pub fn ind(&mut self) -> u16 {
+        let address = self.read_16(self.program_counter);
+        self.program_counter += 2;
+        return address
+    }
+
+    pub fn ind_x(&mut self) -> u16 {
+        let a = self.read_8(self.program_counter).wrapping_add(self.x_index);
+        self.program_counter += 1;
+        let b = a.wrapping_add(1);
+        (self.read_8(a as u16) as u16) + ((self.read_8(b as u16) as u16) << 8)
+    }
+
+    pub fn ind_y(&mut self) -> u16 {
+        let a = self.read_8(self.program_counter);
+        self.program_counter += 1;
+        let b = a.wrapping_add(1);
+        (self.read_8(a as u16) as u16) + ((self.read_8(b as u16) as u16) << 8) + (self.y_index as u16)
+    }
+
+    pub fn zpg(&mut self) -> u16 {
+        let value = self.read_8(self.program_counter);
+        self.program_counter += 1;
+        value as u16
+    }
+
+    pub fn zpg_x(&mut self) -> u16 {
+        let value = self.read_8(self.program_counter).wrapping_add(self.x_index);
+        self.program_counter += 1;
+        value as u16
+    }
+
+    pub fn zpg_y(&mut self) -> u16 {
+        let value = self.read_8(self.program_counter).wrapping_add(self.y_index);
+        self.program_counter += 1;
+        value as u16
+    }
+
+    pub fn imp(&self) -> u16 {
+        0
+    }
+
+    pub fn rel(&mut self) -> u16 {
+        let offset = self.read_8(self.program_counter) as u16;
+        self.program_counter += 1;
+
+        if offset < 0x80u16 {
+            offset + self.program_counter
+        }
+        else {
+            offset + self.program_counter + 0xFF00u16
+        }
+    }
+
+    pub fn acc  (&self) -> u16 {
+        0
+    }
+
+    pub fn imm  (&mut self) -> u16 {
+        let pc = self.program_counter;
+        self.program_counter += 1;
+        pc
+    }
+}
