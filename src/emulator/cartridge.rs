@@ -103,7 +103,7 @@ impl Cartridge {
         }
     }
 
-    pub fn write(&self, address: usize, value: u8) {
+    pub fn write(&self, _address: usize, _value: u8) {
         unimplemented!(); // ROM is read-only memory.
     }
 

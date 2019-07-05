@@ -7,7 +7,7 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new(mut ram: Ram, mut cartridge: Cartridge) -> Bus {
+    pub fn new(ram: Ram, cartridge: Cartridge) -> Bus {
         let size = ram.size;
         if size != 0x0800 {
             panic!("Creating a new Bus: CPU RAM does not have correct size (0x0800)");
@@ -22,7 +22,7 @@ impl Bus {
             0x2000...0x2007 => unimplemented!(),                           // PPU registers
             0x2008...0x3FFF => unimplemented!(),                           // PPU registers (mirror)
             0x4000...0x401F => unimplemented!(),                           // NES APU and I/O registers
-            0x6000...0xFFFF => unimplemented!(),                           // Cartridge (PRG ROM, PRG RAM, and mapper)
+            0x6000...0xFFFF => self.cartridge.read(address as usize),      // Cartridge (PRG ROM, PRG RAM, and mapper)
             _ => panic!(format!("CPU bus: unknown address {}", address)),
         }
     }
