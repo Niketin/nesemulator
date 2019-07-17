@@ -3,31 +3,28 @@ pub mod ram;
 mod instruction;
 mod address_mode;
 
-use crate::emulator::bus::Bus;
-
-const MASTER_CLOCK_FREQUENCY: u32 = 21477272; // Hz
-
+use crate::bus::Bus;
 
 pub struct Cpu {
-    accumulator: u8,
-    x_index: u8,
-    y_index: u8,
-    status: Status,
-    program_counter: u16,
-    stack_pointer: u8,
-    skip_cycles: u8,
-    bus: Bus,
+    pub accumulator: u8,
+    pub x_index: u8,
+    pub y_index: u8,
+    pub status: Status,
+    pub program_counter: u16,
+    pub stack_pointer: u8,
+    pub skip_cycles: u8,
+    pub bus: Bus,
 }
 
-struct Status {
-    carry: bool,
-    zero: bool,
-    interrupt: bool,
-    decimal: bool,
-    something1: bool, // According to nesdev.com/6502.txt this is set when BRK instruction is executed.
-    something2: bool,
-    overflow: bool,
-    negative: bool,
+pub struct Status {
+    pub carry: bool,
+    pub zero: bool,
+    pub interrupt: bool,
+    pub decimal: bool,
+    pub something1: bool, // According to nesdev.com/6502.txt this is set when BRK instruction is executed.
+    pub something2: bool,
+    pub overflow: bool,
+    pub negative: bool,
 }
 
 impl Default for Status {
@@ -42,6 +39,19 @@ impl Default for Status {
             overflow: false,
             negative: false,
         }
+    }
+}
+impl Status {
+    pub fn get_as_byte(&self) -> u8 {
+        let mut result: u8 = self.negative as u8;
+        result = (result << 1) | self.overflow as u8;
+        result = (result << 1) | 1;
+        result = (result << 1) | 0;
+        result = (result << 1) | self.decimal as u8;
+        result = (result << 1) | self.interrupt as u8;
+        result = (result << 1) | self.zero as u8;
+        result = (result << 1) | self.carry as u8;
+        result
     }
 }
 
@@ -63,14 +73,16 @@ impl Cpu {
         cpu
     }
 
-    fn read_8(&mut self, address: u16) -> u8 {
+    fn read_8(&self, address: u16) -> u8 {
         self.bus.read(address)
     }
 
-    fn read_16(&mut self, address: u16) -> u16 {
+    fn read_16(&self, address: u16) -> u16 {
         let lower_byte = self.bus.read(address) as u16;
         let higher_byte = self.bus.read(address + 1) as u16;
-        lower_byte & (higher_byte << 8)
+        let a = higher_byte << 8;
+        let b = lower_byte | a;
+        b
     }
 
     fn write_8(&mut self, address: u16, value: u8) {
@@ -100,6 +112,10 @@ impl Cpu {
         self.program_counter = self.read_16(0xFFFC);
     }
 
+    pub fn set_program_counter(&mut self, new_count: u16) {
+        self.program_counter = new_count;
+    }
+
     pub fn step(&mut self) {
         if self.skip_cycles > 0 {
             self.skip_cycles -= 1;
@@ -109,8 +125,13 @@ impl Cpu {
         self.execute_next_opcode();
     }
 
-    fn execute_next_opcode(&mut self) {
-        let op = opcode::opcode_mapper(self.read_8(self.program_counter));
+    pub fn get_next_opcode(&mut self) -> u8 {
+        self.read_8(self.program_counter)
+    }
+
+    pub fn execute_next_opcode(&mut self) {
+        let op = opcode::opcode_mapper(self.get_next_opcode());
+        self.program_counter += 1;
         let address = self.execute_address_mode(&op.address_mode);
         self.execute_instruction(&op, address);
     }

@@ -18,10 +18,10 @@ impl Cpu {
         let values_added = value as u16 + self.accumulator as u16 + self.status.carry as u16;
 
         self.status.carry = values_added > 0xFF;
-        self.status.zero = values_added == 0;
+        self.status.zero = values_added & 0xFF == 0;
         self.status.negative = values_added & 0x80 == 0x80;
-        self.status.overflow = !(((self.accumulator ^ value) & 0x80) == 0x80
-            && (self.accumulator as u16 ^ values_added) & 0x80 == 0x80)
+        self.status.overflow = value & 0x80 == self.accumulator & 0x80 && value as u16 & 0x80 != values_added & 0x80;;
+        self.accumulator = (values_added & 0xFF) as u8;
     }
 
     pub fn and(&mut self, address: u16) {
@@ -36,14 +36,16 @@ impl Cpu {
         self.status.carry = value & 0x80 == 0x80;
         value <<= 1;
         self.status.negative = value & 0x80 == 0x80;
+        self.status.zero = value == 0;
         self.write_8(address, value);
     }
 
-    pub fn asl_acc(&mut self, address: u16) {
+    pub fn asl_acc(&mut self, _address: u16) {
         let mut value = self.accumulator;
         self.status.carry = value & 0x80 == 0x80;
         value <<= 1;
         self.status.negative = value & 0x80 == 0x80;
+        self.status.zero = value == 0;
         self.accumulator = value;
     }
 
@@ -66,9 +68,10 @@ impl Cpu {
     }
 
     pub fn bit(&mut self, address: u16) {
-        let value = self.read_8(address) & self.accumulator;
+        let value = self.read_8(address);
+        let value_masked =  value & self.accumulator;
+        self.status.zero = value_masked == 0;
         self.status.negative = value & 0x80 == 0x80;
-        self.status.zero = value == 0;
         self.status.overflow = value & 0x40 == 0x40;
     }
 
@@ -123,41 +126,41 @@ impl Cpu {
     }
 
     pub fn cmp(&mut self, address: u16) {
-        let value = self.accumulator - self.read_8(address);
-        self.status.carry = value < 0x80;
+        let value = (self.accumulator as u16).wrapping_sub(self.read_8(address) as u16);
+        self.status.carry = value < 0x100;
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 == 0x80;
     }
 
     pub fn cpx(&mut self, address: u16) {
-        let value = self.x_index - self.read_8(address);
-        self.status.carry = value < 0x80;
+        let value = (self.x_index as u16).wrapping_sub(self.read_8(address) as u16);
+        self.status.carry = value < 0x100;
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 == 0x80;
     }
 
     pub fn cpy(&mut self, address: u16) {
-        let value = self.y_index - self.read_8(address);
-        self.status.carry = value < 0x80;
+        let value = (self.y_index as u16).wrapping_sub(self.read_8(address) as u16);
+        self.status.carry = value < 0x100;
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 == 0x80;
     }
 
     pub fn dec(&mut self, address: u16) {
-        let value = self.read_8(address) - 1;
+        let value = self.read_8(address).wrapping_sub(1);
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 == 0x80;
         self.write_8(address, value);
     }
 
     pub fn dex(&mut self, _address: u16) {
-        self.x_index -= 1;
+        self.x_index = self.x_index.wrapping_sub(1);
         self.status.zero = self.x_index == 0;
         self.status.negative = self.x_index & 0x80 == 0x80;
     }
 
     pub fn dey(&mut self, _address: u16) {
-        self.y_index -= 1;
+        self.y_index = self.y_index.wrapping_sub(1);
         self.status.zero = self.y_index == 0;
         self.status.negative = self.y_index & 0x80 == 0x80;
     }
@@ -169,20 +172,20 @@ impl Cpu {
     }
 
     pub fn inc(&mut self, address: u16) {
-        let value = self.read_8(address) + 1;
+        let value = self.read_8(address).wrapping_add(1);
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 == 0x80;
         self.write_8(address, value);
     }
 
     pub fn inx(&mut self, _address: u16) {
-        self.x_index += 1;
+        self.x_index = self.x_index.wrapping_add(1);
         self.status.zero = self.x_index == 0;
         self.status.negative = self.x_index & 0x80 == 0x80;
     }
 
     pub fn iny(&mut self, _address: u16) {
-        self.y_index += 1;
+        self.y_index = self.y_index.wrapping_add(1);
         self.status.zero = self.y_index == 0;
         self.status.negative = self.y_index & 0x80 == 0x80;
     }
@@ -192,7 +195,7 @@ impl Cpu {
     }
 
     pub fn jsr(&mut self, address: u16) {
-        self.stack_push_16(address - 1);
+        self.stack_push_16(self.program_counter - 1);
         self.program_counter = address;
     }
 
@@ -303,7 +306,7 @@ impl Cpu {
         self.write_8(address, new_value);
     }
 
-    pub fn ror_acc(&mut self, address: u16) {
+    pub fn ror_acc(&mut self, _address: u16) {
         let old_carry = self.status.carry as u8;
         let value = self.accumulator;
         let new_carry = value & 0x01 == 1;
@@ -319,20 +322,21 @@ impl Cpu {
     }
 
     pub fn rts(&mut self, _address: u16) {
-        self.program_counter = self.stack_pop_16() - 1;
+        self.program_counter = self.stack_pop_16() + 1;
     }
 
     pub fn sbc(&mut self, address: u16) {
         let value = self.read_8(address) as u16;
         let carry = self.status.carry as u16;
 
-        let result = self.accumulator as u16 - value - 1 + carry;
+        let result = (self.accumulator as u16).wrapping_sub(value).wrapping_sub(1 - carry);
 
-        self.status.carry = result > 0xFF;
+        self.status.carry = result < 0x100;
         self.status.zero = result & 0xFF == 0;
         self.status.negative = result & 0x80 == 0x80;
-        self.status.overflow = !(((self.accumulator as u16 ^ result) & 0x80) == 0x80
-            && (self.accumulator as u16 ^ value) & 0x80 == 0x80);
+        self.status.overflow =
+            value & 0x80 != self.accumulator as u16 & 0x80 &&
+            value & 0x80 == result & 0x80;
         self.accumulator = (result & 0xFF) as u8;
     }
 

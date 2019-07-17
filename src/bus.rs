@@ -1,5 +1,5 @@
-use crate::emulator::cpu::ram::Ram;
-use crate::emulator::cartridge::Cartridge;
+use crate::cpu::ram::Ram;
+use crate::cartridge::Cartridge;
 
 pub struct Bus {
     ram: Ram,

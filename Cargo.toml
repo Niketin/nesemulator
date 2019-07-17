@@ -6,6 +6,10 @@ edition = "2018"
 
 [dependencies]
 
+[lib]
+name = "emulator"
+path = "src/lib.rs"
+
 [[bin]]
 name = "nesemulator"
 path = "src/main.rs"

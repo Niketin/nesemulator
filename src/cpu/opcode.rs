@@ -182,6 +182,3 @@ pub fn opcode_mapper(code: u8) -> Opcode {
         _    => Opcode::new_invalid()
     }
 }
-
-
-
