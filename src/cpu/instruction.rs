@@ -12,7 +12,7 @@ pub enum Instruction {
     STY, TAX, TAY, TSX, TXA, TXS, TYA,
 }
 
-impl Cpu {
+impl<'a> Cpu<'a> {
     pub fn adc(&mut self, address: u16) {
         let value = self.read_8(address);
         let values_added = value as u16 + self.accumulator as u16 + self.status.carry as u16;

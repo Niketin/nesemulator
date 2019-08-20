@@ -12,7 +12,7 @@ pub enum AddressMode {
     Imm  // Immediate
 }
 
-impl Cpu {
+impl<'a> Cpu<'a> {
     pub fn abs  (&mut self) -> u16 {
         let address = self.read_16(self.program_counter);
         self.program_counter += 2;
@@ -85,10 +85,10 @@ impl Cpu {
         self.program_counter += 1;
 
         if offset < 0x80u16 {
-            offset + self.program_counter
+            offset.wrapping_add(self.program_counter)
         }
         else {
-            offset + self.program_counter + 0xFF00u16
+            offset.wrapping_add(self.program_counter).wrapping_add(0xFF00u16)
         }
     }
 

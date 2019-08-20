@@ -1,4 +1,3 @@
-
 pub struct Ram {
     pub size: usize,
     mem: Vec<u8>,

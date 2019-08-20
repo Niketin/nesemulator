@@ -1,13 +1,23 @@
-mod bus;
 mod cartridge;
 pub mod cpu;
+pub mod ppu;
 
 pub fn run(path: &String) {
     // Some test code
-    let ram = cpu::ram::Ram::new(0x0800);
     let cartridge = cartridge::Cartridge::new_from_file(path);
-    let cpu_bus = bus::Bus::new(ram, cartridge);
-    let _cpu = cpu::Cpu::new(cpu_bus);
+    let ppu_vram = cpu::ram::Ram::new(0x0800);
+    let ppu_bus = ppu::bus::Bus::new(ppu_vram, &cartridge);
+    let ppu = ppu::Ppu::new(ppu_bus);
+
+    let cpu_ram = cpu::ram::Ram::new(0x0800);
+    let cpu_bus = cpu::bus::Bus::new(cpu_ram, &cartridge);
+
+    let mut cpu = cpu::Cpu::new(cpu_bus);
+    cpu.bus.set_ppu(ppu);
+
+    loop {
+        cpu.step();
+    }
 }
 
 #[cfg(test)]
@@ -20,9 +30,9 @@ mod tests {
     #[test]
     fn test_official_opcodes_with_nestest() -> std::result::Result<(), std::io::Error> {
         let rom_path = String::from("tests/nestest.nes");
-        let ram = cpu::ram::Ram::new(0x0800);
         let cartridge = cartridge::Cartridge::new_from_file(&rom_path);
-        let cpu_bus = bus::Bus::new(ram, cartridge);
+        let cpu_ram = cpu::ram::Ram::new(0x0800);
+        let cpu_bus = cpu::bus::Bus::new(cpu_ram, &cartridge);
         let mut cpu = cpu::Cpu::new(cpu_bus);
 
         cpu.set_program_counter(0xC000);
@@ -44,7 +54,7 @@ mod tests {
             if line_number == last_line_official_opcodes {
                 break;
             }
-            
+
             // Program counter check
             let log_program_counter = match u16::from_str_radix(&line[0..4], 16) {
                 Ok(t) => t,

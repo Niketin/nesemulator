@@ -1,11 +1,12 @@
 pub mod opcode;
 pub mod ram;
+pub mod bus;
 mod instruction;
 mod address_mode;
 
-use crate::bus::Bus;
+use crate::cpu::bus::Bus;
 
-pub struct Cpu {
+pub struct Cpu<'a> {
     pub accumulator: u8,
     pub x_index: u8,
     pub y_index: u8,
@@ -13,7 +14,7 @@ pub struct Cpu {
     pub program_counter: u16,
     pub stack_pointer: u8,
     pub skip_cycles: u8,
-    pub bus: Bus,
+    pub bus: Bus<'a, 'a>,
 }
 
 pub struct Status {
@@ -56,8 +57,8 @@ impl Status {
 }
 
 
-impl Cpu {
-    pub fn new(bus: Bus) -> Cpu {
+impl<'a> Cpu<'a> {
+    pub fn new(bus: Bus<'a, 'a>) -> Cpu<'a> {
         let mut cpu =
             Cpu {
                 accumulator: 0,
@@ -130,7 +131,8 @@ impl Cpu {
     }
 
     pub fn execute_next_opcode(&mut self) {
-        let op = opcode::opcode_mapper(self.get_next_opcode());
+        let next_opcode = self.get_next_opcode();
+        let op = opcode::opcode_mapper(next_opcode);
         self.program_counter += 1;
         let address = self.execute_address_mode(&op.address_mode);
         self.execute_instruction(&op, address);
