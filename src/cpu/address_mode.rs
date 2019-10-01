@@ -12,7 +12,7 @@ pub enum AddressMode {
     Imm  // Immediate
 }
 
-impl<'a> Cpu<'a> {
+impl Cpu {
     pub fn abs  (&mut self) -> u16 {
         let address = self.read_16(self.program_counter);
         self.program_counter += 2;

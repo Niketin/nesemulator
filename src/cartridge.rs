@@ -1,10 +1,16 @@
 use std::fs;
 use std::iter::FromIterator;
+use crate::cpu::ram::Ram;
 
 
 const HEADER_SIZE: usize = 16;
 const PRG_ROM_PAGE_SIZE: usize = 0x4000; // 16384
 const CHR_ROM_PAGE_SIZE: usize = 0x2000; //  8192
+
+pub enum NametableMirroring {
+    Vertical,
+    Horizontal
+}
 
 
 pub struct Cartridge {
@@ -32,7 +38,7 @@ impl Cartridge {
         }
     }
 
-    pub fn new_from_file(path: &String) -> Cartridge {
+    pub fn new_from_file(path: String) -> Cartridge {
         let mut rom = Cartridge::new();
 
         rom.mem = fs::read(path).expect("Failed to open file");
@@ -93,8 +99,17 @@ impl Cartridge {
         self.ines_format && nes20_bit_check && nes20_size_check
     }
 
+    fn fetch_mirroring(&self) -> NametableMirroring {
+        if self.mem[6] & 0x01 == 0x01 {
+            NametableMirroring::Vertical
+        }
+        else {
+            NametableMirroring::Horizontal
+        }
+    }
 
-    pub fn read(&self, address: usize) -> u8 {
+
+    pub fn read_using_cpu_bus_address(&self, address: usize) -> u8 {
         match address {
             0x6000...0x7FFF => unimplemented!(),
             0x8000...0xBFFF => self.prg_rom[address - 0x8000usize],
@@ -103,8 +118,36 @@ impl Cartridge {
         }
     }
 
+    
+
+    pub fn read_using_ppu_bus_address(&self, address: usize) -> u8 {
+        unimplemented!();
+    }
+
     pub fn write(&self, _address: usize, _value: u8) {
-        unimplemented!(); // ROM is read-only memory.
+        unimplemented!(); // Temporarily supporting only read-only memory.
+    }
+
+    pub fn read_from_pattern_table(&self, address: u16) -> u8 {
+        self.chr_rom[address as usize]
+    }
+
+    pub fn read_from_nametable(&self, address: u16, vram: &Ram) -> u8 {
+        use NametableMirroring::*;
+        let mirroring = self.fetch_mirroring();
+        match (mirroring, address) {
+            // vram 0x0000...0x03FF
+            (Vertical,   0x2000...0x23FF) => vram.read(address as usize - 0x2000),
+            (Vertical,   0x2800...0x2BFF) => vram.read(address as usize - 0x2800),
+            (Horizontal, 0x2000...0x23FF) => vram.read(address as usize - 0x2000),
+            (Horizontal, 0x2400...0x27FF) => vram.read(address as usize - 0x2400),
+            // vram 0x0400...0x07FF
+            (Vertical,   0x2400...0x27FF) => vram.read(address as usize - 0x2000),
+            (Vertical,   0x2C00...0x2FFF) => vram.read(address as usize - 0x2800),
+            (Horizontal, 0x2800...0x2BFF) => vram.read(address as usize - 0x2400),
+            (Horizontal, 0x2C00...0x2FFF) => vram.read(address as usize - 0x2800),
+            _ => panic!()
+        }
     }
 
 }

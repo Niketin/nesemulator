@@ -2,14 +2,17 @@ use crate::cpu::ram::Ram;
 use crate::cartridge::Cartridge;
 use crate::ppu::Ppu;
 
-pub struct Bus<'a, 'b> {
+use std::cell::RefCell;
+use std::rc::Rc;
+
+pub struct Bus {
     ram: Ram,
-    cartridge: &'a Cartridge,
-    pub ppu: Option<Ppu<'b>>
+    cartridge: Rc<RefCell<Cartridge>>,
+    pub ppu: Option<Ppu>
 }
 
-impl<'a, 'b> Bus<'a, 'b> {
-    pub fn new(ram: Ram, cartridge: &'a Cartridge) -> Bus<'a, 'b> {
+impl Bus {
+    pub fn new(ram: Ram, cartridge: Rc<RefCell<Cartridge>>) -> Bus {
         let size = ram.size;
         if size != 0x0800 {
             panic!("Creating a new Bus: CPU RAM does not have correct size (0x0800)");
@@ -17,18 +20,19 @@ impl<'a, 'b> Bus<'a, 'b> {
         Bus { ram, cartridge, ppu: None }
     }
 
-    pub fn set_ppu(&mut self, ppu: Ppu<'b>) {
+    pub fn set_ppu(&mut self, ppu: Ppu) {
         self.ppu = Some(ppu);
     }
 
     pub fn read(&self, address: u16) -> u8 {
+        let cartridge = self.cartridge.borrow();
         match address {
             0x0000...0x07FF => self.ram.read(address as usize), // CPU RAM
             0x0800...0x1FFF => self.ram.read((address % 0x0800) as usize), // CPU RAM (mirror)
             0x2000...0x2007 => self.read_ppu_register(address), // PPU registers
             0x2008...0x3FFF => self.read_ppu_register((address - 0x2008u16) % 0x0008u16 + 0x2000u16), // PPU registers (mirror)
             0x4000...0x401F => unimplemented!(), // NES APU and I/O registers
-            0x6000...0xFFFF => self.cartridge.read(address as usize), // Cartridge (PRG ROM, PRG RAM, and mapper)
+            0x6000...0xFFFF => cartridge.read_using_cpu_bus_address(address as usize), // Cartridge (PRG ROM, PRG RAM, and mapper)
             _ => panic!(format!("CPU bus: unknown address {}", address)),
         }
     }
@@ -50,7 +54,7 @@ impl<'a, 'b> Bus<'a, 'b> {
     fn read_ppu_register(&self, address: u16) -> u8 {
         let register = match &self.ppu {
             None => panic!(""),
-            Some(ppu) => 
+            Some(ppu) =>
                 match address {
                     0x2000 => &ppu.ppuctrl,
                     0x2001 => &ppu.ppumask,
@@ -69,7 +73,7 @@ impl<'a, 'b> Bus<'a, 'b> {
     fn write_ppu_register(&mut self, address: u16, value: u8) {
         let register = match &mut self.ppu {
             None => panic!(""),
-            Some(ppu) => 
+            Some(ppu) =>
                 match address {
                     0x2000 => &mut ppu.ppuctrl,
                     0x2001 => &mut ppu.ppumask,

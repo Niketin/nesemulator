@@ -2,22 +2,52 @@ mod cartridge;
 pub mod cpu;
 pub mod ppu;
 
-pub fn run(path: &String) {
-    // Some test code
-    let cartridge = cartridge::Cartridge::new_from_file(path);
-    let ppu_vram = cpu::ram::Ram::new(0x0800);
-    let ppu_bus = ppu::bus::Bus::new(ppu_vram, &cartridge);
-    let ppu = ppu::Ppu::new(ppu_bus);
+use crate::cartridge::Cartridge;
+use crate::cpu::ram::Ram;
+use crate::ppu::Ppu;
+use crate::cpu::Cpu;
 
-    let cpu_ram = cpu::ram::Ram::new(0x0800);
-    let cpu_bus = cpu::bus::Bus::new(cpu_ram, &cartridge);
+use std::cell::RefCell;
+use std::rc::Rc;
 
-    let mut cpu = cpu::Cpu::new(cpu_bus);
-    cpu.bus.set_ppu(ppu);
 
-    loop {
-        cpu.step();
+
+struct Emulator {
+    cartridge: Rc<RefCell<Cartridge>>,
+    cpu: Cpu,
+}
+
+impl Emulator {
+    pub fn new(path: &String) -> Emulator {
+        // Some test code
+    
+        let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(path.clone())));
+        let ppu_vram = Ram::new(0x0800);
+        let ppu_bus = ppu::bus::Bus::new(ppu_vram, cartridge.clone());
+        
+        let ppu = Ppu::new(ppu_bus);
+
+        let cpu_ram = cpu::ram::Ram::new(0x0800);
+        let cpu_bus = cpu::bus::Bus::new(cpu_ram, cartridge.clone());
+
+        let cpu = cpu::Cpu::new(cpu_bus);
+
+        let mut emulator = Emulator {
+            cartridge,
+            cpu
+        };
+
+        emulator.cpu.bus.set_ppu(ppu);
+        emulator
     }
+
+    pub fn run(&mut self) {
+        loop {
+            self.cpu.step();
+            self.cpu.bus.ppu.as_mut().unwrap().step();
+        }
+    }
+    
 }
 
 #[cfg(test)]
@@ -30,9 +60,9 @@ mod tests {
     #[test]
     fn test_official_opcodes_with_nestest() -> std::result::Result<(), std::io::Error> {
         let rom_path = String::from("tests/nestest.nes");
-        let cartridge = cartridge::Cartridge::new_from_file(&rom_path);
+        let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(rom_path.clone())));
         let cpu_ram = cpu::ram::Ram::new(0x0800);
-        let cpu_bus = cpu::bus::Bus::new(cpu_ram, &cartridge);
+        let cpu_bus = cpu::bus::Bus::new(cpu_ram, cartridge.clone());
         let mut cpu = cpu::Cpu::new(cpu_bus);
 
         cpu.set_program_counter(0xC000);

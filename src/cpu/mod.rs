@@ -5,8 +5,11 @@ mod instruction;
 mod address_mode;
 
 use crate::cpu::bus::Bus;
+use crate::cartridge::Cartridge;
+use std::cell::{RefCell, Ref, RefMut};
 
-pub struct Cpu<'a> {
+
+pub struct Cpu {
     pub accumulator: u8,
     pub x_index: u8,
     pub y_index: u8,
@@ -14,7 +17,7 @@ pub struct Cpu<'a> {
     pub program_counter: u16,
     pub stack_pointer: u8,
     pub skip_cycles: u8,
-    pub bus: Bus<'a, 'a>,
+    pub bus: Bus,
 }
 
 pub struct Status {
@@ -57,8 +60,8 @@ impl Status {
 }
 
 
-impl<'a> Cpu<'a> {
-    pub fn new(bus: Bus<'a, 'a>) -> Cpu<'a> {
+impl Cpu {
+    pub fn new(bus: Bus) -> Cpu {
         let mut cpu =
             Cpu {
                 accumulator: 0,
@@ -117,13 +120,15 @@ impl<'a> Cpu<'a> {
         self.program_counter = new_count;
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) {//, cartridge: std::cell::RefMut<'a, std::boxed::Box<Cartridge>>) {
+        //self.bus.set_cartridge(&cartridge);
         if self.skip_cycles > 0 {
             self.skip_cycles -= 1;
             return;
         }
 
         self.execute_next_opcode();
+        //self.bus.unset_cartridge();
     }
 
     pub fn get_next_opcode(&mut self) -> u8 {
