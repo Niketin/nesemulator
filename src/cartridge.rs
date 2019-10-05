@@ -120,7 +120,7 @@ impl Cartridge {
 
     
 
-    pub fn read_using_ppu_bus_address(&self, address: usize) -> u8 {
+    pub fn read_using_ppu_bus_address(&self, _address: usize) -> u8 {
         unimplemented!();
     }
 
@@ -148,6 +148,24 @@ impl Cartridge {
             (Horizontal, 0x2C00...0x2FFF) => vram.read(address as usize - 0x2800),
             _ => panic!()
         }
+    }
+
+    pub fn write_to_nametable(&self, address: u16, vram: &mut Ram, value: u8) {
+        use NametableMirroring::*;
+        let mirroring = self.fetch_mirroring();
+        match (mirroring, address) {
+            // vram 0x0000...0x03FF
+            (Vertical,   0x2000...0x23FF) => vram.write(address as usize - 0x2000, value),
+            (Vertical,   0x2800...0x2BFF) => vram.write(address as usize - 0x2800, value),
+            (Horizontal, 0x2000...0x23FF) => vram.write(address as usize - 0x2000, value),
+            (Horizontal, 0x2400...0x27FF) => vram.write(address as usize - 0x2400, value),
+            // vram 0x0400...0x07FF
+            (Vertical,   0x2400...0x27FF) => vram.write(address as usize - 0x2000, value),
+            (Vertical,   0x2C00...0x2FFF) => vram.write(address as usize - 0x2800, value),
+            (Horizontal, 0x2800...0x2BFF) => vram.write(address as usize - 0x2400, value),
+            (Horizontal, 0x2C00...0x2FFF) => vram.write(address as usize - 0x2800, value),
+            _ => panic!()
+        };
     }
 
 }
