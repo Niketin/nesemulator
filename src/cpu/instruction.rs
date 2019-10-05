@@ -94,7 +94,7 @@ impl Cpu {
     }
 
     pub fn brk(&mut self, _address: u16) {
-        unimplemented!();
+        unimplemented!(); // TODO: implement this
     }
 
     pub fn bvc(&mut self, address: u16) {
