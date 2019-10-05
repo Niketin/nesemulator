@@ -5,8 +5,6 @@ mod instruction;
 mod address_mode;
 
 use crate::cpu::bus::Bus;
-use crate::cartridge::Cartridge;
-use std::cell::{RefCell, Ref, RefMut};
 
 
 pub struct Cpu {
@@ -77,11 +75,11 @@ impl Cpu {
         cpu
     }
 
-    fn read_8(&self, address: u16) -> u8 {
+    fn read_8(&mut self, address: u16) -> u8 {
         self.bus.read(address)
     }
 
-    fn read_16(&self, address: u16) -> u16 {
+    fn read_16(&mut self, address: u16) -> u16 {
         let lower_byte = self.bus.read(address) as u16;
         let higher_byte = self.bus.read(address + 1) as u16;
         let a = higher_byte << 8;
@@ -120,15 +118,30 @@ impl Cpu {
         self.program_counter = new_count;
     }
 
-    pub fn step(&mut self) {//, cartridge: std::cell::RefMut<'a, std::boxed::Box<Cartridge>>) {
-        //self.bus.set_cartridge(&cartridge);
+    pub fn step(&mut self) {
+        if self.is_interrupted_by_nmi() {
+            println!("nmi!");
+            self.handle_nmi();
+        }
+        
         if self.skip_cycles > 0 {
             self.skip_cycles -= 1;
             return;
         }
-
         self.execute_next_opcode();
-        //self.bus.unset_cartridge();
+    }
+
+    pub fn is_interrupted_by_nmi(&mut self) -> bool {
+        use crate::ppu;
+        let ppu: &mut ppu::Ppu = self.bus.ppu.as_mut().unwrap();
+        return ppu.nmi();
+    }
+
+    pub fn handle_nmi(&mut self) {
+        self.stack_push_16(self.program_counter); // TODO: Check if stack pushes are in correct order
+        self.stack_push_8(self.status.get_as_byte());
+        let nmi_address = self.read_16(0xFFFA);
+        self.set_program_counter(nmi_address);
     }
 
     pub fn get_next_opcode(&mut self) -> u8 {
@@ -136,6 +149,17 @@ impl Cpu {
     }
 
     pub fn execute_next_opcode(&mut self) {
+
+        // TODO: Fix these. They are debugging branches and after them the program crashes.
+        if self.program_counter == 51220 {
+            println!("breaks");
+        }
+        if self.program_counter == 16415 {
+            println!("breaks2");
+        }
+        if self.program_counter == 64112 {
+            println!("breaks3?");
+        }
         let next_opcode = self.get_next_opcode();
         let op = opcode::opcode_mapper(next_opcode);
         self.program_counter += 1;
