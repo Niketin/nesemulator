@@ -12,9 +12,9 @@ use std::rc::Rc;
 
 
 
-struct Emulator {
-    cartridge: Rc<RefCell<Cartridge>>,
-    cpu: Cpu,
+pub struct Emulator {
+    _cartridge: Rc<RefCell<Cartridge>>,
+    pub cpu: Cpu,
 }
 
 impl Emulator {
@@ -33,7 +33,7 @@ impl Emulator {
         let cpu = cpu::Cpu::new(cpu_bus);
 
         let mut emulator = Emulator {
-            cartridge,
+            _cartridge: cartridge,
             cpu
         };
 
@@ -56,9 +56,15 @@ mod tests {
     use std::io::BufReader;
     use std::io::prelude::*;
     use std::fs::File;
+    use std::result::Result;
 
     #[test]
-    fn test_official_opcodes_with_nestest() -> std::result::Result<(), std::io::Error> {
+    fn test_nmi_timing() -> Result<(), std::io::Error> {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_official_opcodes_with_nestest() -> Result<(), std::io::Error> {
         let rom_path = String::from("tests/nestest.nes");
         let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(rom_path.clone())));
         let cpu_ram = cpu::ram::Ram::new(0x0800);
