@@ -111,9 +111,9 @@ impl Cartridge {
 
     pub fn read_using_cpu_bus_address(&self, address: usize) -> u8 {
         match address {
-            0x6000...0x7FFF => unimplemented!(),
-            0x8000...0xBFFF => self.prg_rom[address - 0x8000usize],
-            0xC000...0xFFFF => self.prg_rom[(address - 0x8000usize) % (self.prg_rom_pages * PRG_ROM_PAGE_SIZE)],
+            0x6000..=0x7FFF => unimplemented!(),
+            0x8000..=0xBFFF => self.prg_rom[address - 0x8000usize],
+            0xC000..=0xFFFF => self.prg_rom[(address - 0x8000usize) % (self.prg_rom_pages * PRG_ROM_PAGE_SIZE)],
             _ => panic!("Trying to read from invalid ROM address."),
         }
     }
@@ -136,16 +136,16 @@ impl Cartridge {
         use NametableMirroring::*;
         let mirroring = self.fetch_mirroring();
         match (mirroring, address) {
-            // vram 0x0000...0x03FF
-            (Vertical,   0x2000...0x23FF) => vram.read(address as usize - 0x2000),
-            (Vertical,   0x2800...0x2BFF) => vram.read(address as usize - 0x2800),
-            (Horizontal, 0x2000...0x23FF) => vram.read(address as usize - 0x2000),
-            (Horizontal, 0x2400...0x27FF) => vram.read(address as usize - 0x2400),
-            // vram 0x0400...0x07FF
-            (Vertical,   0x2400...0x27FF) => vram.read(address as usize - 0x2000),
-            (Vertical,   0x2C00...0x2FFF) => vram.read(address as usize - 0x2800),
-            (Horizontal, 0x2800...0x2BFF) => vram.read(address as usize - 0x2400),
-            (Horizontal, 0x2C00...0x2FFF) => vram.read(address as usize - 0x2800),
+            // vram 0x0000..=0x03FF
+            (Vertical,   0x2000..=0x23FF) => vram.read(address as usize - 0x2000),
+            (Vertical,   0x2800..=0x2BFF) => vram.read(address as usize - 0x2800),
+            (Horizontal, 0x2000..=0x23FF) => vram.read(address as usize - 0x2000),
+            (Horizontal, 0x2400..=0x27FF) => vram.read(address as usize - 0x2400),
+            // vram 0x0400..=0x07FF
+            (Vertical,   0x2400..=0x27FF) => vram.read(address as usize - 0x2000),
+            (Vertical,   0x2C00..=0x2FFF) => vram.read(address as usize - 0x2800),
+            (Horizontal, 0x2800..=0x2BFF) => vram.read(address as usize - 0x2400),
+            (Horizontal, 0x2C00..=0x2FFF) => vram.read(address as usize - 0x2800),
             _ => panic!()
         }
     }
@@ -154,16 +154,16 @@ impl Cartridge {
         use NametableMirroring::*;
         let mirroring = self.fetch_mirroring();
         match (mirroring, address) {
-            // vram 0x0000...0x03FF
-            (Vertical,   0x2000...0x23FF) => vram.write(address as usize - 0x2000, value),
-            (Vertical,   0x2800...0x2BFF) => vram.write(address as usize - 0x2800, value),
-            (Horizontal, 0x2000...0x23FF) => vram.write(address as usize - 0x2000, value),
-            (Horizontal, 0x2400...0x27FF) => vram.write(address as usize - 0x2400, value),
-            // vram 0x0400...0x07FF
-            (Vertical,   0x2400...0x27FF) => vram.write(address as usize - 0x2000, value),
-            (Vertical,   0x2C00...0x2FFF) => vram.write(address as usize - 0x2800, value),
-            (Horizontal, 0x2800...0x2BFF) => vram.write(address as usize - 0x2400, value),
-            (Horizontal, 0x2C00...0x2FFF) => vram.write(address as usize - 0x2800, value),
+            // vram 0x0000..=0x03FF
+            (Vertical,   0x2000..=0x23FF) => vram.write(address as usize - 0x2000, value),
+            (Vertical,   0x2800..=0x2BFF) => vram.write(address as usize - 0x2800, value),
+            (Horizontal, 0x2000..=0x23FF) => vram.write(address as usize - 0x2000, value),
+            (Horizontal, 0x2400..=0x27FF) => vram.write(address as usize - 0x2400, value),
+            // vram 0x0400..=0x07FF
+            (Vertical,   0x2400..=0x27FF) => vram.write(address as usize - 0x2000, value),
+            (Vertical,   0x2C00..=0x2FFF) => vram.write(address as usize - 0x2800, value),
+            (Horizontal, 0x2800..=0x2BFF) => vram.write(address as usize - 0x2400, value),
+            (Horizontal, 0x2C00..=0x2FFF) => vram.write(address as usize - 0x2800, value),
             _ => panic!()
         };
     }

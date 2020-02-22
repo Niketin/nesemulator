@@ -26,12 +26,12 @@ impl Bus {
 
     pub fn read(&mut self, address: u16) -> u8 {
         match address {
-            0x0000...0x07FF => self.ram.read(address as usize), // CPU RAM
-            0x0800...0x1FFF => self.ram.read((address % 0x0800) as usize), // CPU RAM (mirror)
-            0x2000...0x2007 => self.read_ppu_register(address), // PPU registers
-            0x2008...0x3FFF => self.read_ppu_register((address - 0x2008u16) % 0x0008u16 + 0x2000u16), // PPU registers (mirror)
-            0x4000...0x401F => 0, // TODO: NES APU and I/O registers
-            0x6000...0xFFFF => self.cartridge.borrow().read_using_cpu_bus_address(address as usize), // Cartridge (PRG ROM, PRG RAM, and mapper)
+            0x0000..=0x07FF => self.ram.read(address as usize), // CPU RAM
+            0x0800..=0x1FFF => self.ram.read((address % 0x0800) as usize), // CPU RAM (mirror)
+            0x2000..=0x2007 => self.read_ppu_register(address), // PPU registers
+            0x2008..=0x3FFF => self.read_ppu_register((address - 0x2008u16) % 0x0008u16 + 0x2000u16), // PPU registers (mirror)
+            0x4000..=0x401F => 0, // TODO: NES APU and I/O registers
+            0x6000..=0xFFFF => self.cartridge.borrow().read_using_cpu_bus_address(address as usize), // Cartridge (PRG ROM, PRG RAM, and mapper)
             _ => panic!(format!("CPU bus: unknown address {}", address)),
         }
     }
@@ -40,12 +40,12 @@ impl Bus {
 
     pub fn write(&mut self, address: u16, value: u8) {
         match address {
-            0x0000...0x07FF => self.ram.write(address as usize, value), // CPU RAM
-            0x0800...0x1FFF => self.ram.write((address % 0x0800) as usize, value), // CPU RAM (mirror)
-            0x2000...0x2007 => self.write_ppu_register(address, value), // PPU registers
-            0x2008...0x3FFF => self.write_ppu_register((address - 0x2008u16) % 0x0008u16 + 0x2000u16, value), // PPU registers (mirror)
-            0x4000...0x401F => (), // TODO: NES APU and I/O registers
-            0x6000...0xFFFF => unimplemented!(), // Cartridge (PRG ROM, PRG RAM, and mapper)
+            0x0000..=0x07FF => self.ram.write(address as usize, value), // CPU RAM
+            0x0800..=0x1FFF => self.ram.write((address % 0x0800) as usize, value), // CPU RAM (mirror)
+            0x2000..=0x2007 => self.write_ppu_register(address, value), // PPU registers
+            0x2008..=0x3FFF => self.write_ppu_register((address - 0x2008u16) % 0x0008u16 + 0x2000u16, value), // PPU registers (mirror)
+            0x4000..=0x401F => (), // TODO: NES APU and I/O registers
+            0x6000..=0xFFFF => unimplemented!(), // Cartridge (PRG ROM, PRG RAM, and mapper)
             _ => panic!(format!("CPU bus: unknown address {}", address)),
         }
     }

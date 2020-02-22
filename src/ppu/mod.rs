@@ -105,9 +105,9 @@ impl Ppu {
     pub fn cycle(&mut self) {
         match self.scanline {
             0 if self.cycle == 0 => self.visible_scanline(), // Visible scanlines
-            1...239 => (),
+            1..=239 => (),
             240 => (), // Post-render scanline
-            241...260 => self.vertical_blanking_lines(), // Vertical blanking lines
+            241..=260 => self.vertical_blanking_lines(), // Vertical blanking lines
             261 => self.vertical_blanking_lines(),
             _ => ()
         }
@@ -184,17 +184,17 @@ impl Ppu {
 
         match self.cycle {
             0 => (),
-            1...257 => {
+            1..=257 => {
                 match ((self.cycle-1) % 8) + 1  {
-                    1...2 => self.fetch_nametable_byte(),
-                    3...4 => (),
-                    5...6 => (),
-                    7...8 => (),
+                    1..=2 => self.fetch_nametable_byte(),
+                    3..=4 => (),
+                    5..=6 => (),
+                    7..=8 => (),
                     _ => panic!("oh no")
                 }
             },
-            258...320 => (),
-            321...340 => (),
+            258..=320 => (),
+            321..=340 => (),
             _ => panic!("PPU cycle count {} exceeds 340", self.cycle)
 
         }
