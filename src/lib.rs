@@ -59,6 +59,7 @@ mod tests {
     use std::result::Result;
 
     #[test]
+    #[ignore = "not yet implemented"]
     fn test_nmi_timing() -> Result<(), std::io::Error> {
         unimplemented!();
     }
