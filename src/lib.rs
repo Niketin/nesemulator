@@ -80,7 +80,8 @@ mod tests {
         struct Helper<'a> {
             slice: &'a str,
             name: &'a str,
-            value: u8
+            value: u64,
+            base: u32
         }
 
         let last_line_official_opcodes = 5004;
@@ -90,6 +91,9 @@ mod tests {
             if line_number == last_line_official_opcodes {
                 break;
             }
+
+            // Skip cycles
+            while cpu.skip_cycles != 0 { cpu.step();}
 
             // Program counter check
             let log_program_counter = match u16::from_str_radix(&line[0..4], 16) {
@@ -101,27 +105,29 @@ mod tests {
 
             // Opcode and status check
             let h = vec![
-                Helper {slice: &line[6..8],   name: "opcode",        value: cpu.get_next_opcode()},
-                Helper {slice: &line[50..52], name: "accumulator",   value: cpu.accumulator},
-                Helper {slice: &line[55..57], name: "x_index",       value: cpu.x_index},
-                Helper {slice: &line[60..62], name: "y_index",       value: cpu.y_index},
-                Helper {slice: &line[65..67], name: "status",        value: cpu.status.get_as_byte()},
-                Helper {slice: &line[71..73], name: "stack pointer", value: cpu.stack_pointer},
+                Helper {slice: &line[6..8],   name: "opcode",        base:  16, value: cpu.get_next_opcode() as u64},
+                Helper {slice: &line[50..52], name: "accumulator",   base:  16, value: cpu.accumulator as u64},
+                Helper {slice: &line[55..57], name: "x_index",       base:  16, value: cpu.x_index as u64},
+                Helper {slice: &line[60..62], name: "y_index",       base:  16, value: cpu.y_index as u64},
+                Helper {slice: &line[65..67], name: "status",        base:  16, value: cpu.status.get_as_byte() as u64},
+                Helper {slice: &line[71..73], name: "stack pointer", base:  16, value: cpu.stack_pointer as u64},
+                Helper {slice: &line[90..],   name: "cycle",         base:  10, value: cpu.cycle},
             ];
             for help in h {
-                let log_value = match u8::from_str_radix(help.slice, 16) {
+                let log_value = match u64::from_str_radix(help.slice, help.base) {
                     Ok(t) => t,
                     Err(_) => panic!("Detected wrong format while parsing {} from nestest.log", help.name),
                 };
-                assert_eq!(help.value, log_value, "Comparing CPU's {} {:X} and log's {} {:X} on line {}", help.name, help.value, help.name, log_value, line_number);
+                match help.base {
+                    10 => assert_eq!(help.value, log_value, "Comparing CPU's {} {} and log's {} {} on line {}", help.name, help.value, help.name, log_value, line_number),
+                    _  => assert_eq!(help.value, log_value, "Comparing CPU's {} {:X} and log's {} {:X} on line {}", help.name, help.value, help.name, log_value, line_number)
+                }
             }
 
             // Prepare for next line
-            cpu.execute_next_opcode();
             line_number += 1;
+            cpu.step();
         }
-
-
 
         Ok(())
     }

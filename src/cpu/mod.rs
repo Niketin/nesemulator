@@ -16,6 +16,8 @@ pub struct Cpu {
     pub stack_pointer: u8,
     pub skip_cycles: u8,
     pub bus: Bus,
+    pub cycle: u64,
+    pub page_crossed: bool
 }
 
 pub struct Status {
@@ -70,6 +72,8 @@ impl Cpu {
                 stack_pointer: 0xFD,
                 skip_cycles: 0,
                 bus,
+                cycle: 7, // TODO: fix cpu so that this can init as 0.
+                page_crossed: false
             };
         cpu.reset_program_counter();
         cpu
@@ -119,6 +123,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self) {
+        self.cycle +=1;
         if self.is_interrupted_by_nmi() {
             println!("nmi!");
             self.handle_nmi();
@@ -149,7 +154,6 @@ impl Cpu {
     }
 
     pub fn execute_next_opcode(&mut self) {
-
         // TODO: Fix these. They are debugging branches and after them the program crashes.
         if self.program_counter == 51220 {
             println!("breaks");
@@ -163,8 +167,14 @@ impl Cpu {
         let next_opcode = self.get_next_opcode();
         let op = opcode::opcode_mapper(next_opcode);
         self.program_counter += 1;
+        self.skip_cycles += op.cycles - 1;
+        self.page_crossed = false; // Reset page_crossed flag
         let address = self.execute_address_mode(&op.address_mode);
         self.execute_instruction(&op, address);
+    }
+
+    fn crossing_page(&mut self, address_1: u16, address_2: u16) -> bool {
+        return address_1 & 0xFF00 != address_2 & 0xFF00
     }
 
     fn execute_address_mode(&mut self, address_mode: &address_mode::AddressMode) -> u16 {

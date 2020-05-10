@@ -22,6 +22,7 @@ impl Cpu {
         self.status.negative = values_added & 0x80 == 0x80;
         self.status.overflow = value & 0x80 == self.accumulator & 0x80 && value as u16 & 0x80 != values_added & 0x80;;
         self.accumulator = (values_added & 0xFF) as u8;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn and(&mut self, address: u16) {
@@ -29,6 +30,7 @@ impl Cpu {
         self.status.negative = value & 0x80 == 0x80;
         self.status.zero = value == 0;
         self.accumulator = value;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn asl(&mut self, address: u16) {
@@ -51,19 +53,25 @@ impl Cpu {
 
     pub fn bcc(&mut self, address: u16) {
         if !self.status.carry {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
     pub fn bcs(&mut self, address: u16) {
         if self.status.carry {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
     pub fn beq(&mut self, address: u16) {
         if self.status.zero {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
@@ -77,19 +85,25 @@ impl Cpu {
 
     pub fn bmi(&mut self, address: u16) {
         if self.status.negative {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
     pub fn bne(&mut self, address: u16) {
         if !self.status.zero {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
     pub fn bpl(&mut self, address: u16) {
         if !self.status.negative {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
@@ -99,13 +113,17 @@ impl Cpu {
 
     pub fn bvc(&mut self, address: u16) {
         if !self.status.overflow {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
     pub fn bvs(&mut self, address: u16) {
         if self.status.overflow {
+            if self.crossing_page(address, self.program_counter) { self.skip_cycles += 1;}
             self.program_counter = address;
+            self.skip_cycles += 1;
         }
     }
 
@@ -130,6 +148,7 @@ impl Cpu {
         self.status.carry = value < 0x100;
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 == 0x80;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn cpx(&mut self, address: u16) {
@@ -169,6 +188,7 @@ impl Cpu {
         self.accumulator ^= self.read_8(address);
         self.status.zero = self.accumulator == 0;
         self.status.negative = self.accumulator & 0x80 == 0x80;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn inc(&mut self, address: u16) {
@@ -203,18 +223,21 @@ impl Cpu {
         self.accumulator = self.read_8(address);
         self.status.zero = self.accumulator == 0;
         self.status.negative = self.accumulator & 0x80 == 0x80;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn ldx(&mut self, address: u16) {
         self.x_index = self.read_8(address);
         self.status.zero = self.x_index == 0;
         self.status.negative = self.x_index & 0x80 == 0x80;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn ldy(&mut self, address: u16) {
         self.y_index = self.read_8(address);
         self.status.zero = self.y_index == 0;
         self.status.negative = self.y_index & 0x80 == 0x80;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn lsr(&mut self, address: u16) {
@@ -241,6 +264,7 @@ impl Cpu {
         self.accumulator = self.read_8(address) | self.accumulator;
         self.status.zero = self.accumulator == 0;
         self.status.negative = self.accumulator & 0x80 == 0x80;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn pha(&mut self, _address: u16) {
@@ -338,6 +362,7 @@ impl Cpu {
             value & 0x80 != self.accumulator as u16 & 0x80 &&
             value & 0x80 == result & 0x80;
         self.accumulator = (result & 0xFF) as u8;
+        if self.page_crossed { self.skip_cycles += 1; }
     }
 
     pub fn sec(&mut self, _address: u16) {

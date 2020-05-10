@@ -24,7 +24,9 @@ impl Cpu {
         self.program_counter += 1;
         let address_high = self.read_8(self.program_counter) as u16;
         self.program_counter += 1;
-        address_low.wrapping_add(address_high << 8).wrapping_add(self.x_index as u16)
+        let address_low_x = address_low.wrapping_add(self.x_index as u16);
+        self.page_crossed = address_low_x > 0xFF;
+        address_low_x.wrapping_add(address_high << 8)
     }
 
     pub fn abs_y(&mut self) -> u16 {
@@ -32,7 +34,9 @@ impl Cpu {
         self.program_counter += 1;
         let address_high = self.read_8(self.program_counter) as u16;
         self.program_counter += 1;
-        address_low.wrapping_add(address_high << 8).wrapping_add(self.y_index as u16)
+        let address_low_y = address_low.wrapping_add(self.y_index as u16);
+        self.page_crossed = address_low_y > 0xFF;
+        address_low_y.wrapping_add(address_high << 8)
     }
 
     pub fn ind(&mut self) -> u16 {
@@ -55,7 +59,10 @@ impl Cpu {
         let a = self.read_8(self.program_counter);
         self.program_counter += 1;
         let b = a.wrapping_add(1);
-        (self.read_8(a as u16) as u16).wrapping_add((self.read_8(b as u16) as u16) << 8).wrapping_add(self.y_index as u16)
+        let address = (self.read_8(a as u16) as u16).wrapping_add((self.read_8(b as u16) as u16) << 8);
+        let address_y = address.wrapping_add(self.y_index as u16);
+        self.page_crossed = self.crossing_page(address, address_y);
+        address_y
     }
 
     pub fn zpg(&mut self) -> u16 {
