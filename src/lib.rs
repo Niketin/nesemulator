@@ -72,6 +72,10 @@ mod tests {
         let cpu_bus = cpu::bus::Bus::new(cpu_ram, cartridge.clone());
         let mut cpu = cpu::Cpu::new(cpu_bus);
 
+        let ppu_bus = ppu::bus::Bus::new(cartridge.clone());
+        let ppu = Ppu::new(ppu_bus);
+        cpu.bus.set_ppu(ppu);
+
         cpu.set_program_counter(0xC000);
 
         let f = File::open("tests/nestest.log")?;
@@ -94,7 +98,13 @@ mod tests {
             }
 
             // Skip cycles
-            while cpu.skip_cycles != 0 { cpu.step();}
+            while cpu.skip_cycles != 0 {
+                cpu.step();
+                let ppu = cpu.bus.ppu.as_mut().unwrap();
+                ppu.step();
+                ppu.step();
+                ppu.step();
+            }
 
             // Program counter check
             let log_program_counter = match u16::from_str_radix(&line[0..4], 16) {
@@ -113,9 +123,11 @@ mod tests {
                 Helper {slice: &line[65..67], name: "status",        base:  16, value: cpu.status.get_as_byte() as u64},
                 Helper {slice: &line[71..73], name: "stack pointer", base:  16, value: cpu.stack_pointer as u64},
                 Helper {slice: &line[90..],   name: "cycle",         base:  10, value: cpu.cycle},
+                Helper {slice: &line[78..81], name: "ppu x",         base:  10, value: cpu.bus.ppu.as_ref().unwrap().x as u64},
+                Helper {slice: &line[82..85], name: "ppu y",         base:  10, value: cpu.bus.ppu.as_ref().unwrap().y as u64},
             ];
             for help in h {
-                let log_value = match u64::from_str_radix(help.slice, help.base) {
+                let log_value = match u64::from_str_radix(help.slice.trim(), help.base) {
                     Ok(t) => t,
                     Err(_) => panic!("Detected wrong format while parsing {} from nestest.log", help.name),
                 };
@@ -128,6 +140,10 @@ mod tests {
             // Prepare for next line
             line_number += 1;
             cpu.step();
+            let ppu = cpu.bus.ppu.as_mut().unwrap();
+            ppu.step();
+            ppu.step();
+            ppu.step();
         }
 
         Ok(())
