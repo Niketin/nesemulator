@@ -16,16 +16,13 @@ impl Bus {
 
     pub fn read(&self, address: u16) -> u8 {
         let cartridge = self.cartridge.borrow();
-        match address { // TODO: move this (or at least 0x0000-0x2FFF) logic inside cartridge or mappers
-            0x0000..=0x0FFF => cartridge.read_from_pattern_table(address),// Pattern table 0
-            0x1000..=0x1FFF => cartridge.read_from_pattern_table(address),// Pattern table 1
-            0x2000..=0x23FF => cartridge.read_from_nametable(address, &self.vram),// Nametable 0
-            0x2400..=0x27FF => cartridge.read_from_nametable(address, &self.vram),// Nametable 1
-            0x2800..=0x2BFF => cartridge.read_from_nametable(address, &self.vram),// Nametable 2
-            0x2C00..=0x2FFF => cartridge.read_from_nametable(address, &self.vram),// Nametable 3
-            0x3000..=0x3EFF => unimplemented!(),// Mirrors of $2000-$2EFF
-            0x3F00..=0x3F1F => unimplemented!(),// Palette RAM indexes
-            0x3F20..=0x3FFF => unimplemented!(),//
+        match address {
+            // TODO: move this (or at least 0x0000-0x2FFF) logic inside cartridge or mappers
+            0x0000..=0x1FFF => cartridge.read_from_pattern_table(address), // Pattern table 0..1
+            0x2000..=0x2FFF => cartridge.read_from_nametable(address, &self.vram), // Nametable 0..3
+            0x3000..=0x3EFF => unimplemented!(), // Mirrors of $2000-$2EFF
+            0x3F00..=0x3F1F => unimplemented!(), // Palette RAM indexes
+            0x3F20..=0x3FFF => unimplemented!(), // TODO ??
             _ => panic!("PPU bus: unknown address {:#x}", address),
         }
     }
@@ -50,10 +47,7 @@ impl Bus {
     fn write_name_table(&mut self, address: u16, value: u8) {
         let cartridge = self.cartridge.borrow();
         match address {
-            0x2000..=0x23FF => cartridge.write_to_nametable(address, &mut self.vram, value),// Nametable 0
-            0x2400..=0x27FF => cartridge.write_to_nametable(address, &mut self.vram, value),// Nametable 1
-            0x2800..=0x2BFF => cartridge.write_to_nametable(address, &mut self.vram, value),// Nametable 2
-            0x2C00..=0x2FFF => cartridge.write_to_nametable(address, &mut self.vram, value),// Nametable 3
+            0x2000..=0x2FFF => cartridge.write_to_nametable(address, &mut self.vram, value), // Nametable 0..3
             _ => panic!(format!("PPU bus: should be called with address of range 0x2000..=0x2FFF. Was called with {:#x}", address)),
         }
     }
