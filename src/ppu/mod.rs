@@ -1,6 +1,7 @@
 pub mod bus;
 pub mod display;
 pub mod palette;
+mod shift_register;
 
 use crate::ppu::bus::Bus;
 use crate::ppu::display::Color;
@@ -21,7 +22,7 @@ pub struct Ppu {
     pub y: u16,
     pub bus: Bus,
     pub display: Display,
-    _palette: Palette,
+    palette: Palette,
     pub nmi_occurred: bool,
     pub nmi_output: bool,
     pub ppuaddr_upper_byte_next: bool,
@@ -47,7 +48,7 @@ impl Ppu {
             y: 0,
             bus,
             display: Default::default(),
-            _palette: Palette::new(),
+            palette: Palette::new(),
             nmi_occurred: false,
             nmi_output: true,
             ppuaddr_upper_byte_next: true,
@@ -210,6 +211,7 @@ impl Ppu {
         }
 
         if 1 <= self.x && self.x <= 256 {
+            let att_entry = (self.shift_att_table & 0x00FF) as u8;
             let nt_entry = (self.shift_nametable & 0x00FF) as u8;
             let pattern_table_address: u16 = ((self.ppuctrl as u16 >> 4) & 1) * 0x1000;
             let pattern_fine_y_offset = self.y % 8;
@@ -223,16 +225,38 @@ impl Ppu {
             let low = (pt_low >> (7 - pattern_fine_x_offset)) & 1;
             let high = (pt_high >> (7 - pattern_fine_x_offset)) & 1;
             let color_number = (high << 1) | low;
+            
+            let palette_shift: u8 = match ((self.x % 32) / 16, (self.y / 32) / 16) {
+                (0, 0) => 0,
+                (1, 0) => 2,
+                (0, 1) => 4,
+                (1, 1) => 6,
+                _ => unreachable!()
+            };
 
-            let mut palette: Vec<Color> = vec![];
+            let palette_number = (att_entry >> palette_shift) & 0x03;
+
+            let color_address: u16 = match color_number {
+                0 => 0,
+                1..=3 => palette_number as u16 * 4 + color_number as u16,
+                _ => unreachable!("Color number greater than 3 is not possible.")
+            };
+            
+            let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
+            let color = self.palette.get_color(color_number_in_big_palette as usize).unwrap();
+            
+
+            //self.display.set_pixel(x as usize, y as usize, (*color).clone());
+            
+            /*let mut palette: Vec<Color> = vec![];
             for i in 0..=3 {
                 let c = 255 / 3 * i;
                 palette.push(Color::new_rgb(c, c, c));
-            }
+            }*/
             self.display.set_pixel(
                 (self.x - 1) as usize,
                 self.y as usize,
-                palette[color_number as usize].clone(),
+                color.clone(),
             );
         }
     }
