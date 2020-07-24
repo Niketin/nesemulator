@@ -1,7 +1,7 @@
 use std::fs;
 use std::iter::FromIterator;
 use crate::cpu::ram::Ram;
-use log::{debug, info};
+use log::info;
 
 const HEADER_SIZE: usize = 16;
 const PRG_ROM_PAGE_SIZE: usize = 0x4000; // 16384

@@ -6,7 +6,6 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use std::env;
 
-
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut emulator = Emulator::new(&args[1]);
@@ -48,7 +47,7 @@ fn main() {
             let _width = display.width;
             let _height = display.height;
             let pixels = display.get_pixels();
-            if let Err(e) = texture.update(None, pixels, 256*3) {
+            if let Err(e) = texture.update(None, pixels, 256 * 3) {
                 panic!("Main loop: failed to update the texture: {}", e);
             }
             if let Err(e) = canvas.copy(&texture, None, None) {

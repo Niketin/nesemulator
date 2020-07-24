@@ -1,20 +1,19 @@
-use crate::cpu::ram::Ram;
 use crate::cartridge::Cartridge;
+use crate::cpu::ram::Ram;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
 pub struct Bus {
     vram: Ram,
-    cartridge: Rc<RefCell<Cartridge>>
+    cartridge: Rc<RefCell<Cartridge>>,
 }
 
 impl Bus {
     pub fn new(cartridge: Rc<RefCell<Cartridge>>) -> Bus {
         Bus { vram: Ram::default(), cartridge }
     }
-    
+
     pub fn read(&self, address: u16) -> u8 {
         let cartridge = self.cartridge.borrow();
         match address { // TODO: move this (or at least 0x0000-0x2FFF) logic inside cartridge or mappers
@@ -63,9 +62,7 @@ impl Bus {
         self.vram.write(address as usize, value);
     }
 
-     pub fn read_from_vram(&mut self, address: u16) -> u8 {
+    pub fn read_from_vram(&mut self, address: u16) -> u8 {
         self.vram.read(address as usize)
     }
-
-    
 }

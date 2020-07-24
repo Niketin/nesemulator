@@ -3,7 +3,6 @@ pub mod cpu;
 pub mod ppu;
 
 use crate::cartridge::Cartridge;
-use crate::cpu::ram::Ram;
 use crate::ppu::Ppu;
 use crate::cpu::Cpu;
 

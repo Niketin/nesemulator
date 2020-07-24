@@ -6,8 +6,6 @@ mod address_mode;
 
 use crate::cpu::bus::Bus;
 
-use log::debug;
-
 
 pub struct Cpu {
     pub accumulator: u8,

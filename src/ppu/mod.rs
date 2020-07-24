@@ -214,9 +214,8 @@ impl Ppu {
             let pattern_table_address: u16 = ((self.ppuctrl as u16 >> 4) & 1) * 0x1000;
             let pattern_fine_y_offset = self.y % 8;
             let pattern_fine_x_offset = self.x % 8;
-            let pattern_table_tile_row_address = pattern_table_address
-                | ((nt_entry as u16) << 4)
-                | pattern_fine_y_offset;
+            let pattern_table_tile_row_address =
+                pattern_table_address | ((nt_entry as u16) << 4) | pattern_fine_y_offset;
 
             let pt_low = self.bus.read(pattern_table_tile_row_address & 0xfff7);
             let pt_high = self.bus.read(pattern_table_tile_row_address | 0x8);

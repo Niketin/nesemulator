@@ -1,10 +1,10 @@
-use super::instruction::*;
 use super::address_mode::*;
+use super::instruction::*;
 
 pub struct Opcode {
     pub address_mode: AddressMode,
     pub instruction: Instruction,
-    pub cycles: u8
+    pub cycles: u8,
 }
 
 impl Opcode {
@@ -12,14 +12,14 @@ impl Opcode {
         Opcode {
             instruction,
             address_mode,
-            cycles
+            cycles,
         }
     }
     fn new_invalid() -> Opcode {
         Opcode {
             instruction: Instruction::Invalid,
             address_mode: AddressMode::Invalid,
-            cycles: 0u8
+            cycles: 0u8,
         }
     }
 }
