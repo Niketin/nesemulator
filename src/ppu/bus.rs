@@ -11,19 +11,14 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new(vram: Ram, cartridge: Rc<RefCell<Cartridge>>) -> Bus {
-        let size = vram.size;
-        if size != 0x0800 {
-            panic!("Creating a new Bus: PPU RAM does not have correct size (0x0800)");
-        }
-        
-        Bus { vram, cartridge }
+    pub fn new(cartridge: Rc<RefCell<Cartridge>>) -> Bus {
+        Bus { vram: Ram::default(), cartridge }
     }
     
     pub fn read(&self, address: u16) -> u8 {
         let cartridge = self.cartridge.borrow();
         match address { // TODO: move this (or at least 0x0000-0x2FFF) logic inside cartridge or mappers
-            0x0000..=0x0FFF => cartridge.read_from_pattern_table(address),         // Pattern table 0
+            0x0000..=0x0FFF => cartridge.read_from_pattern_table(address),// Pattern table 0
             0x1000..=0x1FFF => cartridge.read_from_pattern_table(address),// Pattern table 1
             0x2000..=0x23FF => cartridge.read_from_nametable(address, &self.vram),// Nametable 0
             0x2400..=0x27FF => cartridge.read_from_nametable(address, &self.vram),// Nametable 1
@@ -48,13 +43,13 @@ impl Bus {
         }
     }
 
-    fn write_to_palette_ram(&mut self, address: u16, value: u8) {
+    fn write_to_palette_ram(&mut self, _address: u16, _value: u8) {
+        //unimplemented!()
         // TODO: implement this
     }
 
     fn write_name_table(&mut self, address: u16, value: u8) {
         let cartridge = self.cartridge.borrow();
-
         match address {
             0x2000..=0x23FF => cartridge.write_to_nametable(address, &mut self.vram, value),// Nametable 0
             0x2400..=0x27FF => cartridge.write_to_nametable(address, &mut self.vram, value),// Nametable 1

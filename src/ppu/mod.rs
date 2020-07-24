@@ -2,12 +2,10 @@ pub mod bus;
 pub mod display;
 pub mod palette;
 
-
 use crate::ppu::bus::Bus;
-use crate::ppu::display::Display;
 use crate::ppu::display::Color;
+use crate::ppu::display::Display;
 use crate::ppu::palette::Palette;
-
 
 pub struct Ppu {
     pub ppuaddr: u16,
@@ -19,16 +17,19 @@ pub struct Ppu {
     pub oamaddr: u8,
     pub oamdata: u8,
     _oamdma: u8,
-    pub scanline: i16,
-    pub cycle: u16,
+    pub x: u16,
+    pub y: u16,
     pub bus: Bus,
     pub display: Display,
     _palette: Palette,
     pub nmi_occurred: bool,
     pub nmi_output: bool,
-    pub ppuaddr_upper_byte_next: bool
+    pub ppuaddr_upper_byte_next: bool,
+    shift_nametable: u16,
+    shift_att_table: u16,
+    shift_palette_0: u8,
+    shift_palette_1: u8,
 }
-
 
 impl Ppu {
     pub fn new(bus: Bus) -> Ppu {
@@ -42,14 +43,18 @@ impl Ppu {
             oamaddr: 0,
             oamdata: 0,
             _oamdma: 0,
-            scanline: 0,
-            cycle: 0,
+            x: 0,
+            y: 0,
             bus,
             display: Default::default(),
             _palette: Palette::new(),
             nmi_occurred: false,
             nmi_output: true,
-            ppuaddr_upper_byte_next: true
+            ppuaddr_upper_byte_next: true,
+            shift_nametable: 0,
+            shift_att_table: 0,
+            shift_palette_0: 0,
+            shift_palette_1: 0,
         }
     }
 
@@ -57,8 +62,7 @@ impl Ppu {
         if self.ppuaddr_upper_byte_next {
             self.ppuaddr = (value as u16) << 8;
             self.ppuaddr_upper_byte_next = false;
-        }
-        else {
+        } else {
             self.ppuaddr |= value as u16;
             self.ppuaddr_upper_byte_next = true;
         }
@@ -66,11 +70,19 @@ impl Ppu {
 
     pub fn read_ppustatus(&mut self) -> u8 {
         let status = self.ppustatus;
-        self.ppustatus &= 0x7F;   // TODO: 7th bit
-        self.nmi_occurred = false;// and this variable are kinda the same. 
+        self.clear_vblank();
+        self.nmi_occurred = false; // and this variable are kinda the same.
         self.ppuaddr_upper_byte_next = true;
         self.ppuaddr = 0;
         status
+    }
+
+    fn clear_vblank(&mut self) {
+        self.ppustatus &= 0x7F;
+    }
+
+    fn set_vblank(&mut self) {
+        self.ppustatus |= 0x80;
     }
 
     pub fn read_ppudata(&mut self) -> u8 {
@@ -90,12 +102,18 @@ impl Ppu {
     }
 
     fn get_vram_address_increment(&self) -> u16 {
-        if self.ppuctrl & 0x04 == 0x04 { 32 } else { 1 }
+        if self.ppuctrl & 0x04 == 0x04 {
+            32
+        } else {
+            1
+        }
     }
 
     pub fn nmi(&mut self) -> bool {
         // TODO: set some flag off? Is it needed?
-        self.nmi_occurred
+        let nmi_occurred = self.nmi_occurred;
+        self.nmi_occurred = false;
+        nmi_occurred
     }
 
     pub fn step(&mut self) {
@@ -103,24 +121,48 @@ impl Ppu {
     }
 
     pub fn cycle(&mut self) {
-        match self.scanline {
-            0 if self.cycle == 0 => self.visible_scanline(), // Visible scanlines
-            1..=239 => (),
-            240 => (), // Post-render scanline
-            241..=260 => self.vertical_blanking_lines(), // Vertical blanking lines
-            261 => self.vertical_blanking_lines(),
-            _ => ()
+        if self.y == 241 && self.x == 1 {
+            self.set_vblank();
         }
 
-        self.cycle = (self.cycle + 1) % 341; 
-        if self.cycle == 0 {
-            self.scanline = (self.scanline + 1) % 262;
+        if self.y == 261 && self.x == 1 {
+            self.clear_vblank();
+            // TODO: clear sprite 0 and overlow according to the timing chart.
+        }
+
+        match self.y {
+            0..=239 => self.visible_scanline(),          // Visible scanlines
+            240 => (),                                   // Post-render scanline
+            241..=260 => self.vertical_blanking_lines(), // TODO Vertical blanking lines
+            261 => self.vertical_blanking_lines(),       // TODO Pre-render line
+            _ => (),
+        }
+
+        self.increase_x();
+        if self.x == 0 {
+            self.increase_y();
         }
     }
 
+    fn increase_y(&mut self) {
+        self.y = self.next_y();
+    }
+
+    fn increase_x(&mut self) {
+        self.x = self.next_x();
+    }
+
+    fn next_x(&self) -> u16 {
+        (self.x + 1) % 341
+    }
+
+    fn next_y(&self) -> u16 {
+        (self.y + 1) % 262
+    }
+
     fn vertical_blanking_lines(&mut self) {
-        let vblank_start = self.scanline == 241  && self.cycle == 1;
-        let vblank_end = self.scanline == 261  && self.cycle == 1;
+        let vblank_start = self.y == 241 && self.x == 1;
+        let vblank_end = self.y == 261 && self.x == 1;
 
         if vblank_start {
             self.nmi_occurred = true;
@@ -132,89 +174,93 @@ impl Ppu {
         }
     }
 
-    pub fn visible_scanline(&mut self) {
-        let nametable_number = self.ppuctrl & 0x03;
-        let nametable_address_start = 0x2000 + nametable_number as u16 * 0x400; 
-
-        for x in 0..255 {
-            for y in 0..239 {
-                let cell_row = y / 8;
-                let cell_col = x / 8;
-
-                let nt_entry = self.bus.read(nametable_address_start + cell_col + 32*cell_row);
-                let att_entry = self.bus.read(nametable_address_start + 0x03C0 + cell_row / 2 + cell_row / 2 * 8);
-                if nt_entry != 0 || att_entry != 0 {
-                    println!("jee");
-                }
-                let pattern_table_0_address = nametable_address_start + ((nt_entry as u16) << 4) + y%8;
-
-                let pt_low  = self.bus.read(pattern_table_0_address);
-                let pt_high = self.bus.read(pattern_table_0_address + 8);
-
-                let a = x % 8;
-
-                let low  = (pt_low  >> (7-a)) & 1;
-                let high = (pt_high >> (7-a)) & 1;
-
-                let color_number = (high << 1) & low;
-                /*
-                
-                let palette_shift = match ((x % 32) / 16, (y % 32) / 16) {
-                    (0, 0) => 0,
-                    (1, 0) => 2,
-                    (0, 1) => 4,
-                    (1, 1) => 6,
-                    _ => panic!()
-                };
-
-
-                let palette_number = (att_entry >> palette_shift) & 0x03;
-                let color = self.palette.get_color(palette_number as usize).unwrap();
-                self.display.set_pixel(x as usize, y as usize, (*color).clone());                
-                */
-                let mut palette: Vec<Color> = vec![];
-                for i in 0..3 {
-                    palette.push(Color::new_rgb(255/4*i, 255/4*i, 255/4*i));
-                }
-                self.display.set_pixel(x as usize, y as usize, palette[color_number as usize].clone());                
+    fn fetch_match(&mut self) {
+        match ((self.x - 1) % 8) + 1 {
+            1 => (),
+            2 => self.fetch_nametable_byte(),
+            3 => (),
+            4 => self.fetch_attribute_table_byte(),
+            5 => (),
+            6 => self.fetch_low_bg_tile_byte(),
+            7 => (),
+            8 => {
+                self.fetch_high_bg_tile_byte();
+                self.shift_registers();
             }
+            _ => unreachable!(),
         }
-        
+    }
 
+    fn shift_registers(&mut self) {
+        self.shift_att_table = self.shift_att_table.rotate_left(8);
+        self.shift_nametable = self.shift_nametable.rotate_left(8);
+        self.shift_palette_0 = self.shift_palette_0.rotate_left(4);
+        self.shift_palette_1 = self.shift_palette_1.rotate_left(4);
+    }
 
-        match self.cycle {
-            0 => (),
-            1..=257 => {
-                match ((self.cycle-1) % 8) + 1  {
-                    1..=2 => self.fetch_nametable_byte(),
-                    3..=4 => (),
-                    5..=6 => (),
-                    7..=8 => (),
-                    _ => panic!("oh no")
-                }
-            },
+    pub fn visible_scanline(&mut self) {
+        match self.x {
+            0 => (), // TODO: is this ok?
+            1..=256 => self.fetch_match(),
+            257 => (),
             258..=320 => (),
-            321..=340 => (),
-            _ => panic!("PPU cycle count {} exceeds 340", self.cycle)
+            321..=336 => self.fetch_match(),
+            337..=340 => (),
+            _ => unreachable!("PPU cycle count {} exceeds 340", self.y),
+        }
 
+        if 1 <= self.x && self.x <= 256 {
+            let nt_entry = (self.shift_nametable & 0x00FF) as u8;
+            let pattern_table_address: u16 = ((self.ppuctrl as u16 >> 4) & 1) * 0x1000;
+            let pattern_fine_y_offset = self.y % 8;
+            let pattern_fine_x_offset = self.x % 8;
+            let pattern_table_tile_row_address = pattern_table_address
+                | ((nt_entry as u16) << 4)
+                | pattern_fine_y_offset;
+
+            let pt_low = self.bus.read(pattern_table_tile_row_address & 0xfff7);
+            let pt_high = self.bus.read(pattern_table_tile_row_address | 0x8);
+
+            let low = (pt_low >> (7 - pattern_fine_x_offset)) & 1;
+            let high = (pt_high >> (7 - pattern_fine_x_offset)) & 1;
+            let color_number = (high << 1) | low;
+
+            let mut palette: Vec<Color> = vec![];
+            for i in 0..=3 {
+                let c = 255 / 3 * i;
+                palette.push(Color::new_rgb(c, c, c));
+            }
+            self.display.set_pixel(
+                (self.x - 1) as usize,
+                self.y as usize,
+                palette[color_number as usize].clone(),
+            );
         }
     }
 
     fn fetch_nametable_byte(&mut self) {
+        let nametable_number = self.ppuctrl as u16 & 0x03;
+        let nametable_address_start = 0x2000 + nametable_number * 0x400;
+        let cell_x = self.x / 8;
+        let cell_y = self.y / 8;
+        let address = nametable_address_start + cell_x + 32 * cell_y;
+        let nt_entry = self.bus.read(address);
+        self.shift_nametable &= 0x00ff;
+        self.shift_nametable |= (nt_entry as u16) << 8;
+    }
+
+    fn fetch_attribute_table_byte(&mut self) {
         let nametable_number = self.ppuctrl & 0x03;
-        let _nametable_address_start = 0x2000 + nametable_number as u16 * 0x400; 
+        let nametable_address_start = 0x2000 + nametable_number as u16 * 0x400;
+        let cell_col = self.x / 32;
+        let cell_row = self.y / 32;
+        let address = nametable_address_start + 0x03C0 + cell_row + cell_col * 8;
+        let att_entry = self.bus.read(address);
+        self.shift_att_table &= 0x00ff;
+        self.shift_att_table |= (att_entry as u16) << 8;
     }
 
-    fn _fetch_attribute_table_byte(&mut self) {
-        
-    }
+    fn fetch_low_bg_tile_byte(&mut self) {}
 
-    fn _fetch_low_bg_tile_byte(&mut self) {
-        
-    }
-
-    fn _fetch_high_bg_tile_byte(&mut self) {
-        
-    }
-
+    fn fetch_high_bg_tile_byte(&mut self) {}
 }

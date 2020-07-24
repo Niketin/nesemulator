@@ -1,7 +1,7 @@
 use std::fs;
 use std::iter::FromIterator;
 use crate::cpu::ram::Ram;
-
+use log::{debug, info};
 
 const HEADER_SIZE: usize = 16;
 const PRG_ROM_PAGE_SIZE: usize = 0x4000; // 16384
@@ -73,16 +73,12 @@ impl Cartridge {
 
     fn update_prg_rom_size(&mut self) {
         self.prg_rom_pages = self.mem[4] as usize;
-        if self.prg_rom_pages == 0 {
-            panic!("Invalid ROM: non-positive prg rom size.");
-        }
+        info!("prg rom pages: {}", self.prg_rom_pages);
     }
 
     fn update_chr_rom_size(&mut self) {
         self.chr_rom_pages = self.mem[5] as usize;
-        if self.chr_rom_pages == 0 {
-            panic!("Invalid ROM: non-positive chr rom size.");
-        }
+        info!("chr rom pages: {}", self.chr_rom_pages);
     }
 
     fn update_mapper_number(&self) -> u8 {

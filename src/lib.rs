@@ -22,8 +22,7 @@ impl Emulator {
         // Some test code
     
         let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(path.clone())));
-        let ppu_vram = Ram::new(0x0800);
-        let ppu_bus = ppu::bus::Bus::new(ppu_vram, cartridge.clone());
+        let ppu_bus = ppu::bus::Bus::new(cartridge.clone());
         
         let ppu = Ppu::new(ppu_bus);
 
@@ -41,11 +40,12 @@ impl Emulator {
         emulator
     }
 
-    pub fn run(&mut self) {
-        loop {
-            self.cpu.step();
-            self.cpu.bus.ppu.as_mut().unwrap().step();
-        }
+    pub fn step(&mut self) {
+        self.cpu.step();
+        let ppu = self.cpu.bus.ppu.as_mut().unwrap();
+        ppu.step();
+        ppu.step();
+        ppu.step();
     }
     
 }

@@ -6,6 +6,8 @@ mod address_mode;
 
 use crate::cpu::bus::Bus;
 
+use log::debug;
+
 
 pub struct Cpu {
     pub accumulator: u8,
@@ -125,7 +127,6 @@ impl Cpu {
     pub fn step(&mut self) {
         self.cycle +=1;
         if self.is_interrupted_by_nmi() {
-            println!("nmi!");
             self.handle_nmi();
         }
         
@@ -137,9 +138,10 @@ impl Cpu {
     }
 
     pub fn is_interrupted_by_nmi(&mut self) -> bool {
-        use crate::ppu;
-        let ppu: &mut ppu::Ppu = self.bus.ppu.as_mut().unwrap();
-        return ppu.nmi();
+        match self.bus.ppu {
+            Some(ref mut ppu) => ppu.nmi(),
+            None => false
+        }
     }
 
     pub fn handle_nmi(&mut self) {
@@ -154,16 +156,6 @@ impl Cpu {
     }
 
     pub fn execute_next_opcode(&mut self) {
-        // TODO: Fix these. They are debugging branches and after them the program crashes.
-        if self.program_counter == 51220 {
-            println!("breaks");
-        }
-        if self.program_counter == 16415 {
-            println!("breaks2");
-        }
-        if self.program_counter == 64112 {
-            println!("breaks3?");
-        }
         let next_opcode = self.get_next_opcode();
         let op = opcode::opcode_mapper(next_opcode);
         self.program_counter += 1;

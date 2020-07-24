@@ -28,7 +28,7 @@ pub fn opcode_mapper(code: u8) -> Opcode {
     use Instruction::*;
     use AddressMode::*;
     match code {
-        0x00 => Opcode::new(BRK, Imp,  0),
+        0x00 => Opcode::new(BRK, Imp,  7),
         0x01 => Opcode::new(ORA, IndX, 6),
         0x05 => Opcode::new(ORA, Zpg,  3),
         0x06 => Opcode::new(ASL, Zpg,  5),
