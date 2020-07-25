@@ -136,7 +136,8 @@ impl Ppu {
             0..=239 => self.visible_scanline(),          // Visible scanlines
             240 => (),                                   // Post-render scanline
             241..=260 => self.vertical_blanking_lines(), // TODO Vertical blanking lines
-            261 => self.vertical_blanking_lines(),       // TODO Pre-render line
+            261 => {self.fetch_stuff();
+                    self.vertical_blanking_lines();},
             _ => (),
         }
 
@@ -146,21 +147,14 @@ impl Ppu {
         }
     }
 
-    fn increase_y(&mut self) {
-        self.y = self.next_y();
-    }
+    fn increase_y(&mut self) { self.y = self.next_y(); }
+    fn increase_x(&mut self) { self.x = self.next_x(); }
 
-    fn increase_x(&mut self) {
-        self.x = self.next_x();
-    }
+    fn next_x(&self) -> u16 { self.mod_x(self.x + 1) }
+    fn next_y(&self) -> u16 { self.mod_y(self.y + 1) }
 
-    fn next_x(&self) -> u16 {
-        (self.x + 1) % 341
-    }
-
-    fn next_y(&self) -> u16 {
-        (self.y + 1) % 262
-    }
+    fn mod_x(&self, value: u16) -> u16 { value % 341 }
+    fn mod_y(&self, value: u16) -> u16 { value % 262 }
 
     fn vertical_blanking_lines(&mut self) {
         let vblank_start = self.y == 241 && self.x == 1;
@@ -200,7 +194,7 @@ impl Ppu {
         self.shift_palette_1.shift();
     }
 
-    pub fn visible_scanline(&mut self) {
+    fn fetch_stuff(&mut self) {
         match self.x {
             0 => (), // TODO: is this ok?
             1..=256 => self.fetch_match(),
@@ -210,6 +204,10 @@ impl Ppu {
             337..=340 => (),
             _ => unreachable!("PPU cycle count {} exceeds 340", self.y),
         }
+    }
+
+    pub fn visible_scanline(&mut self) {
+        self.fetch_stuff();
 
         if 1 <= self.x && self.x <= 256 {
             let att_entry = self.shift_att_table.get();
@@ -220,7 +218,7 @@ impl Ppu {
             let pattern_table_tile_row_address =
                 pattern_table_address | ((nt_entry as u16) << 4) | pattern_fine_y_offset;
 
-            let pt_low = self.bus.read(pattern_table_tile_row_address & 0xfff7);
+            let pt_low = self.bus.read(pattern_table_tile_row_address);
             let pt_high = self.bus.read(pattern_table_tile_row_address | 0x8);
 
             let low = (pt_low >> (7 - pattern_fine_x_offset)) & 1;
@@ -228,20 +226,16 @@ impl Ppu {
             let color_number = (high << 1) | low;
             
             let palette_shift: u8 = match ((self.x % 32) / 16, (self.y / 32) / 16) {
-                (0, 0) => 0,
-                (1, 0) => 2,
-                (0, 1) => 4,
-                (1, 1) => 6,
+                (0, 0) => 0, // top left
+                (1, 0) => 2, // top right
+                (0, 1) => 4, // bottom left
+                (1, 1) => 6, // bottom right
                 _ => unreachable!()
             };
 
             let palette_number = (att_entry >> palette_shift) & 0x03;
 
-            let color_address: u16 = match color_number {
-                0 => 0,
-                1..=3 => palette_number as u16 * 4 + color_number as u16,
-                _ => unreachable!("Color number greater than 3 is not possible.")
-            };
+            let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
             
             let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
             let color = self.palette.get_color(color_number_in_big_palette as usize).unwrap();
@@ -263,23 +257,46 @@ impl Ppu {
     }
 
     fn fetch_nametable_byte(&mut self) {
-        let nametable_number = self.ppuctrl as u16 & 0x03;
-        let nametable_address_start = 0x2000 + nametable_number * 0x400;
-        let cell_x = self.x / 8;
-        let cell_y = self.y / 8;
-        let address = nametable_address_start + cell_x + 32 * cell_y;
+        let nametable_address = self.nametable_address();
+        let (x, y) = self.get_next_tile_xy();
+        let cell_x = x / 8;
+        let cell_y = y / 8;
+        let address = nametable_address + cell_x + 32 * cell_y;
         let nt_entry = self.bus.read(address);
         self.shift_nametable.set(nt_entry);
     }
 
     fn fetch_attribute_table_byte(&mut self) {
-        let nametable_number = self.ppuctrl & 0x03;
-        let nametable_address_start = 0x2000 + nametable_number as u16 * 0x400;
-        let cell_col = self.x / 32;
-        let cell_row = self.y / 32;
-        let address = nametable_address_start + 0x03C0 + cell_row + cell_col * 8;
+        let nametable_address = self.nametable_address();
+        let (x, y) = self.get_next_tile_xy();
+        let cell_x = x / 32;
+        let cell_y = y / 32;
+        let address = nametable_address + 0x03C0 + cell_y + (cell_x<<3);
         let att_entry = self.bus.read(address);
         self.shift_att_table.set(att_entry);
+    }
+
+    fn nametable_address(&self) -> u16 {
+        let nametable_number = self.ppuctrl & 0x03;
+        0x2000 + nametable_number as u16 * 0x400
+    }
+
+    fn get_next_tile_xy(&self) -> (u16, u16) {
+        // x has to be at the tile after the next tile
+        let x = if 321 <= self.x && self.x <= 336 {
+            self.x-321
+        }
+        else {
+            self.mod_x(self.x + 16)
+        };
+
+        // y has to be at the tile after the next tile
+        let y = if x < self.x {
+            self.next_y()
+        } else {
+            self.y
+        };
+        (x, y)
     }
 
     fn fetch_low_bg_tile_byte(&mut self) {}
