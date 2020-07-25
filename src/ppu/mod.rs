@@ -271,7 +271,7 @@ impl Ppu {
         let (x, y) = self.get_next_tile_xy();
         let cell_x = x / 32;
         let cell_y = y / 32;
-        let address = nametable_address + 0x03C0 + cell_y + (cell_x<<3);
+        let address = nametable_address + 0x03C0 + (cell_y<<3) + cell_x;
         let att_entry = self.bus.read(address);
         self.shift_att_table.set(att_entry);
     }
