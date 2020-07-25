@@ -181,7 +181,7 @@ impl Ppu {
             7 => (),
             8 => {
                 self.fetch_high_bg_tile_byte();
-                self.shift_registers();
+                self.shift_registers(); // TODO should this be at fetch_match 1?
             }
             _ => unreachable!(),
         }
@@ -232,22 +232,11 @@ impl Ppu {
                 (1, 1) => 6, // bottom right
                 _ => unreachable!()
             };
-
             let palette_number = (att_entry >> palette_shift) & 0x03;
-
             let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
-            
             let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
             let color = self.palette.get_color(color_number_in_big_palette as usize).unwrap();
             
-
-            //self.display.set_pixel(x as usize, y as usize, (*color).clone());
-            
-            /*let mut palette: Vec<Color> = vec![];
-            for i in 0..=3 {
-                let c = 255 / 3 * i;
-                palette.push(Color::new_rgb(c, c, c));
-            }*/
             self.display.set_pixel(
                 (self.x - 1) as usize,
                 self.y as usize,

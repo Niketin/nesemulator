@@ -25,8 +25,6 @@ fn main() {
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    println!("Entering the main loop.");
-
     let mut waiting_to_render = true;
 
     let texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext> =
@@ -56,7 +54,6 @@ fn main() {
             canvas.present();
             waiting_to_render = false;
 
-            frame += 1;
         }
         if ppu.y == 241 {
             waiting_to_render = true;
