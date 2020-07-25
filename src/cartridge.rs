@@ -17,6 +17,7 @@ pub struct Cartridge {
     mem: Vec<u8>,
     prg_rom: Vec<u8>,
     chr_rom: Vec<u8>,
+    chr_ram: Vec<u8>,
     ines_format: bool,
     nes20_format: bool,
     prg_rom_pages: usize,
@@ -30,6 +31,7 @@ impl Cartridge {
             mem: Vec::default(),
             prg_rom: Vec::default(),
             chr_rom: Vec::default(),
+            chr_ram: vec![0; 0x2000],
             prg_rom_pages: 0,
             chr_rom_pages: 0,
             ines_format: false,
@@ -125,7 +127,16 @@ impl Cartridge {
     }
 
     pub fn read_from_pattern_table(&self, address: u16) -> u8 {
+        if self.chr_rom.is_empty() {
+            return self.chr_ram[address as usize];
+        }
         self.chr_rom[address as usize]
+    }
+
+    pub fn write_to_pattern_table(&mut self, address: u16, value: u8) {
+        if self.chr_rom.is_empty() {
+            self.chr_ram[address as usize] = value;
+        }
     }
 
     pub fn read_from_nametable(&self, address: u16, vram: &Ram) -> u8 {

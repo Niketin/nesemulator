@@ -34,7 +34,10 @@ impl Bus {
 
     pub fn write(&mut self, address: u16, value: u8) {
         match address {
-            0x0000..=0x1FFF => (), // Writing to rom does basicly nothing
+            0x0000..=0x1FFF => {
+                let mut cartridge = self.cartridge.borrow_mut();
+                cartridge.write_to_pattern_table(address, value); // Writing to rom does basicly nothing
+            },
             0x2000..=0x2FFF => self.write_name_table(address, value),
             // TODO: check these addresses and mirroring from documentations related to PPUDATA
             0x3000..=0x3EFF => self.write_name_table(address - 0x1000, value),
