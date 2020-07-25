@@ -32,7 +32,6 @@ fn main() {
     let mut texture = texture_creator
         .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 256, 240)
         .unwrap();
-    let mut frame: u64 = 0;
 
     'running: loop {
         emulator.step();

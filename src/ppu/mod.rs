@@ -4,7 +4,6 @@ pub mod palette;
 mod shift_register;
 
 use crate::ppu::bus::Bus;
-use crate::ppu::display::Color;
 use crate::ppu::display::Display;
 use crate::ppu::palette::Palette;
 use crate::ppu::shift_register::ShiftRegister;
