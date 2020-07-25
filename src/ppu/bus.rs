@@ -26,8 +26,8 @@ impl Bus {
             0x0000..=0x1FFF => cartridge.read_from_pattern_table(address), // Pattern table 0..1
             0x2000..=0x2FFF => cartridge.read_from_nametable(address, &self.vram), // Nametable 0..3
             0x3000..=0x3EFF => unimplemented!(), // Mirrors of $2000-$2EFF
-            0x3F00..=0x3F1F => self.read_from_palette_ram(address - 0x3F00), // Palette RAM indexes
-            0x3F20..=0x3FFF => unimplemented!(), // TODO ??
+            0x3F00..=0x3F1F => self.read_from_palette_ram(address - 0x3F00), // Palette RAM
+            0x3F20..=0x3FFF => self.read_from_palette_ram(address - 0x3F00), // Palette RAM mirror
             _ => panic!("PPU bus: unknown address {:#x}", address),
         }
     }
@@ -47,12 +47,22 @@ impl Bus {
     }
 
     fn write_to_palette_ram(&mut self, address: u16, value: u8) {
-        println!("Write to palette address {}", address);
-        self.palette_ram.write(address as usize % 0x20, value)
+        let mirrored_address = self.mirror_palette_ram_address(address);
+        self.palette_ram.write(mirrored_address as usize, value);
     }
-    
+
     fn read_from_palette_ram(& self, address: u16) -> u8 {
-        self.palette_ram.read(address as usize % 0x20)
+        let mirrored_address = self.mirror_palette_ram_address(address);
+        self.palette_ram.read(mirrored_address as usize)
+    }
+
+    fn mirror_palette_ram_address(&self, address: u16) -> u16 {
+        let mirrored_address = address % 0x20;
+        let mirrored_address = match mirrored_address {
+            0x10 | 0x14 | 0x18 | 0x1C => mirrored_address - 0x10,
+            _ => mirrored_address,
+        };
+        mirrored_address
     }
 
     fn write_name_table(&mut self, address: u16, value: u8) {
