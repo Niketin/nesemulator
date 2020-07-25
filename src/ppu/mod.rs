@@ -7,6 +7,7 @@ use crate::ppu::bus::Bus;
 use crate::ppu::display::Color;
 use crate::ppu::display::Display;
 use crate::ppu::palette::Palette;
+use crate::ppu::shift_register::ShiftRegister;
 
 pub struct Ppu {
     pub ppuaddr: u16,
@@ -26,10 +27,10 @@ pub struct Ppu {
     pub nmi_occurred: bool,
     pub nmi_output: bool,
     pub ppuaddr_upper_byte_next: bool,
-    shift_nametable: u16,
-    shift_att_table: u16,
-    shift_palette_0: u8,
-    shift_palette_1: u8,
+    shift_nametable: ShiftRegister<u8>, // u16
+    shift_att_table: ShiftRegister<u8>, // u16
+    shift_palette_0: ShiftRegister<u8>, // u8
+    shift_palette_1: ShiftRegister<u8>, // u8
 }
 
 impl Ppu {
@@ -52,10 +53,10 @@ impl Ppu {
             nmi_occurred: false,
             nmi_output: true,
             ppuaddr_upper_byte_next: true,
-            shift_nametable: 0,
-            shift_att_table: 0,
-            shift_palette_0: 0,
-            shift_palette_1: 0,
+            shift_nametable: Default::default(),
+            shift_att_table: Default::default(),
+            shift_palette_0: Default::default(),
+            shift_palette_1: Default::default(),
         }
     }
 
@@ -193,10 +194,10 @@ impl Ppu {
     }
 
     fn shift_registers(&mut self) {
-        self.shift_att_table = self.shift_att_table.rotate_left(8);
-        self.shift_nametable = self.shift_nametable.rotate_left(8);
-        self.shift_palette_0 = self.shift_palette_0.rotate_left(4);
-        self.shift_palette_1 = self.shift_palette_1.rotate_left(4);
+        self.shift_att_table.shift();
+        self.shift_nametable.shift();
+        self.shift_palette_0.shift();
+        self.shift_palette_1.shift();
     }
 
     pub fn visible_scanline(&mut self) {
@@ -211,8 +212,8 @@ impl Ppu {
         }
 
         if 1 <= self.x && self.x <= 256 {
-            let att_entry = (self.shift_att_table & 0x00FF) as u8;
-            let nt_entry = (self.shift_nametable & 0x00FF) as u8;
+            let att_entry = self.shift_att_table.get();
+            let nt_entry = self.shift_nametable.get();
             let pattern_table_address: u16 = ((self.ppuctrl as u16 >> 4) & 1) * 0x1000;
             let pattern_fine_y_offset = self.y % 8;
             let pattern_fine_x_offset = self.x % 8;
@@ -268,8 +269,7 @@ impl Ppu {
         let cell_y = self.y / 8;
         let address = nametable_address_start + cell_x + 32 * cell_y;
         let nt_entry = self.bus.read(address);
-        self.shift_nametable &= 0x00ff;
-        self.shift_nametable |= (nt_entry as u16) << 8;
+        self.shift_nametable.set(nt_entry);
     }
 
     fn fetch_attribute_table_byte(&mut self) {
@@ -279,8 +279,7 @@ impl Ppu {
         let cell_row = self.y / 32;
         let address = nametable_address_start + 0x03C0 + cell_row + cell_col * 8;
         let att_entry = self.bus.read(address);
-        self.shift_att_table &= 0x00ff;
-        self.shift_att_table |= (att_entry as u16) << 8;
+        self.shift_att_table.set(att_entry);
     }
 
     fn fetch_low_bg_tile_byte(&mut self) {}
