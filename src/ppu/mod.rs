@@ -26,10 +26,13 @@ pub struct Ppu {
     pub nmi_occurred: bool,
     pub nmi_output: bool,
     pub ppuaddr_upper_byte_next: bool,
-    shift_nametable: ShiftRegister<u8>, // u16
-    shift_att_table: ShiftRegister<u8>, // u16
-    shift_palette_0: ShiftRegister<u8>, // u8
-    shift_palette_1: ShiftRegister<u8>, // u8
+    shift_att_table: ShiftRegister,
+    shift_pattern_l: ShiftRegister,
+    shift_pattern_h: ShiftRegister,
+    latch_nametable: u8,
+    latch_attribute: u8,
+    latch_pattern_h: u8,
+    latch_pattern_l: u8,
 }
 
 impl Ppu {
@@ -52,10 +55,13 @@ impl Ppu {
             nmi_occurred: false,
             nmi_output: true,
             ppuaddr_upper_byte_next: true,
-            shift_nametable: Default::default(),
-            shift_att_table: Default::default(),
-            shift_palette_0: Default::default(),
-            shift_palette_1: Default::default(),
+            shift_att_table: ShiftRegister::new(2),
+            shift_pattern_l: ShiftRegister::new(2),
+            shift_pattern_h: ShiftRegister::new(2),
+            latch_nametable: 0,
+            latch_attribute: 0,
+            latch_pattern_h: 0,
+            latch_pattern_l: 0,
         }
     }
 
@@ -171,35 +177,43 @@ impl Ppu {
 
     fn fetch_match(&mut self) {
         match ((self.x - 1) % 8) + 1 {
-            1 => (),
+            1 => self.update_shift_registers_from_latches(),
             2 => self.fetch_nametable_byte(),
             3 => (),
             4 => self.fetch_attribute_table_byte(),
             5 => (),
             6 => self.fetch_low_bg_tile_byte(),
             7 => (),
-            8 => {
-                self.fetch_high_bg_tile_byte();
-                self.shift_registers(); // TODO should this be at fetch_match 1?
-            }
+            8 => self.fetch_high_bg_tile_byte(),
             _ => unreachable!(),
         }
     }
 
-    fn shift_registers(&mut self) {
-        self.shift_att_table.shift();
-        self.shift_nametable.shift();
-        self.shift_palette_0.shift();
-        self.shift_palette_1.shift();
+    fn update_shift_registers_from_latches(&mut self) {
+        self.shift_att_table.shift_bytes();
+        self.shift_att_table.set(self.latch_attribute);
+        self.shift_pattern_l.set(self.latch_pattern_l);
+        self.shift_pattern_h.set(self.latch_pattern_h);
+    }
+
+    fn shift_patterns(&mut self) {
+        self.shift_pattern_l.shift_bits();
+        self.shift_pattern_h.shift_bits();
     }
 
     fn fetch_stuff(&mut self) {
         match self.x {
             0 => (), // TODO: is this ok?
-            1..=256 => self.fetch_match(),
+            1..=256 => {
+                self.shift_patterns();
+                self.fetch_match();
+            },
             257 => (),
             258..=320 => (),
-            321..=336 => self.fetch_match(),
+            321..=336 => {
+                self.shift_patterns();
+                self.fetch_match();
+            },
             337..=340 => (),
             _ => unreachable!("PPU cycle count {} exceeds 340", self.y),
         }
@@ -209,33 +223,16 @@ impl Ppu {
         self.fetch_stuff();
 
         if 1 <= self.x && self.x <= 256 {
+            let pattern_l = self.shift_pattern_l.get() & 1;
+            let pattern_h = self.shift_pattern_h.get() & 1;
+            let color_number = (pattern_h << 1) | pattern_l;
+            let palette_shift: u8 = ((self.x & 0x10) >> 3) as u8 | (self.y >> 7) as u8;
             let att_entry = self.shift_att_table.get();
-            let nt_entry = self.shift_nametable.get();
-            let pattern_table_address: u16 = ((self.ppuctrl as u16 >> 4) & 1) * 0x1000;
-            let pattern_fine_y_offset = self.y % 8;
-            let pattern_fine_x_offset = self.x % 8;
-            let pattern_table_tile_row_address =
-                pattern_table_address | ((nt_entry as u16) << 4) | pattern_fine_y_offset;
-
-            let pt_low = self.bus.read(pattern_table_tile_row_address);
-            let pt_high = self.bus.read(pattern_table_tile_row_address | 0x8);
-
-            let low = (pt_low >> (7 - pattern_fine_x_offset)) & 1;
-            let high = (pt_high >> (7 - pattern_fine_x_offset)) & 1;
-            let color_number = (high << 1) | low;
-            
-            let palette_shift: u8 = match ((self.x % 32) / 16, (self.y / 32) / 16) {
-                (0, 0) => 0, // top left
-                (1, 0) => 2, // top right
-                (0, 1) => 4, // bottom left
-                (1, 1) => 6, // bottom right
-                _ => unreachable!()
-            };
             let palette_number = (att_entry >> palette_shift) & 0x03;
             let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
             let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
             let color = self.palette.get_color(color_number_in_big_palette as usize).unwrap();
-            
+
             self.display.set_pixel(
                 (self.x - 1) as usize,
                 self.y as usize,
@@ -251,7 +248,7 @@ impl Ppu {
         let cell_y = y / 8;
         let address = nametable_address + cell_x + 32 * cell_y;
         let nt_entry = self.bus.read(address);
-        self.shift_nametable.set(nt_entry);
+        self.latch_nametable = nt_entry;
     }
 
     fn fetch_attribute_table_byte(&mut self) {
@@ -261,7 +258,7 @@ impl Ppu {
         let cell_y = y / 32;
         let address = nametable_address + 0x03C0 + (cell_y<<3) + cell_x;
         let att_entry = self.bus.read(address);
-        self.shift_att_table.set(att_entry);
+        self.latch_attribute = att_entry;
     }
 
     fn nametable_address(&self) -> u16 {
@@ -287,7 +284,20 @@ impl Ppu {
         (x, y)
     }
 
-    fn fetch_low_bg_tile_byte(&mut self) {}
+    fn get_pattern_table_tile_address(&self) -> u16 {
+        let pattern_table_address: u16 = ((self.ppuctrl as u16 >> 4) & 1) << 12;
+        let (_, y) = self.get_next_tile_xy();
+        let pattern_fine_y_offset = y % 8;
+        pattern_table_address | ((self.latch_nametable as u16) << 4) | pattern_fine_y_offset
+    }
 
-    fn fetch_high_bg_tile_byte(&mut self) {}
+    fn fetch_low_bg_tile_byte(&mut self) {
+        let pattern_table_tile_row_address = self.get_pattern_table_tile_address();
+        self.latch_pattern_l = self.bus.read(pattern_table_tile_row_address).reverse_bits();
+    }
+
+    fn fetch_high_bg_tile_byte(&mut self) {
+        let pattern_table_tile_row_address = self.get_pattern_table_tile_address();
+        self.latch_pattern_h = self.bus.read(pattern_table_tile_row_address | 0x8).reverse_bits();
+    }
 }
