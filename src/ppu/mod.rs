@@ -244,9 +244,9 @@ impl Ppu {
     fn fetch_nametable_byte(&mut self) {
         let nametable_address = self.nametable_address();
         let (x, y) = self.get_next_tile_xy();
-        let cell_x = x / 8;
-        let cell_y = y / 8;
-        let address = nametable_address + cell_x + 32 * cell_y;
+        let cell_x = x >> 3;
+        let cell_y = y >> 3;
+        let address = nametable_address + cell_x + (cell_y << 5);
         let nt_entry = self.bus.read(address);
         self.latch_nametable = nt_entry;
     }
@@ -254,16 +254,16 @@ impl Ppu {
     fn fetch_attribute_table_byte(&mut self) {
         let nametable_address = self.nametable_address();
         let (x, y) = self.get_next_tile_xy();
-        let cell_x = x / 32;
-        let cell_y = y / 32;
-        let address = nametable_address + 0x03C0 + (cell_y<<3) + cell_x;
+        let cell_x = x >> 5;
+        let cell_y = y >> 5;
+        let address = nametable_address + 0x03C0 + (cell_y << 3) + cell_x;
         let att_entry = self.bus.read(address);
         self.latch_attribute = att_entry;
     }
 
     fn nametable_address(&self) -> u16 {
         let nametable_number = self.ppuctrl & 0x03;
-        0x2000 + nametable_number as u16 * 0x400
+        0x2000 + ((nametable_number as u16) << 10)
     }
 
     fn get_next_tile_xy(&self) -> (u16, u16) {
@@ -285,19 +285,17 @@ impl Ppu {
     }
 
     fn get_pattern_table_tile_address(&self) -> u16 {
-        let pattern_table_address: u16 = ((self.ppuctrl as u16 >> 4) & 1) << 12;
+        let pattern_table_address: u16 = (self.ppuctrl as u16 & 0x10) << 8;
         let (_, y) = self.get_next_tile_xy();
-        let pattern_fine_y_offset = y % 8;
+        let pattern_fine_y_offset = y & 0b0111;
         pattern_table_address | ((self.latch_nametable as u16) << 4) | pattern_fine_y_offset
     }
 
     fn fetch_low_bg_tile_byte(&mut self) {
-        let pattern_table_tile_row_address = self.get_pattern_table_tile_address();
-        self.latch_pattern_l = self.bus.read(pattern_table_tile_row_address).reverse_bits();
+        self.latch_pattern_l = self.bus.read(self.get_pattern_table_tile_address()).reverse_bits();
     }
 
     fn fetch_high_bg_tile_byte(&mut self) {
-        let pattern_table_tile_row_address = self.get_pattern_table_tile_address();
-        self.latch_pattern_h = self.bus.read(pattern_table_tile_row_address | 0x8).reverse_bits();
+        self.latch_pattern_h = self.bus.read(self.get_pattern_table_tile_address() | 0x8).reverse_bits();
     }
 }
