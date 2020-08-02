@@ -16,7 +16,8 @@ impl Palette {
         Palette { colors}
     }
 
-    pub fn get_color(&self, index: usize) -> Option<&Color> {
-        self.colors.get(index)
+    pub fn get_color(&self, index: usize) -> &Color {
+        debug_assert!(index < 0x40);
+        &self.colors[index]
     }
 }

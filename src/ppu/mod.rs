@@ -221,24 +221,32 @@ impl Ppu {
 
     pub fn visible_scanline(&mut self) {
         self.fetch_stuff();
-
         if 1 <= self.x && self.x <= 256 {
-            let pattern_l = self.shift_pattern_l.get() & 1;
-            let pattern_h = self.shift_pattern_h.get() & 1;
-            let color_number = (pattern_h << 1) | pattern_l;
-            let palette_shift: u8 = ((self.x & 0x10) >> 3) as u8 | (self.y >> 7) as u8;
-            let att_entry = self.shift_att_table.get();
-            let palette_number = (att_entry >> palette_shift) & 0x03;
-            let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
-            let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-            let color = self.palette.get_color(color_number_in_big_palette as usize).unwrap();
-
+            let background_render_enabled = (self.ppumask >> 3) & 1 == 1;
+            let color = if background_render_enabled {
+                self.get_background_color()
+            } else {
+                self.palette.get_color(0).clone()
+            };
             self.display.set_pixel(
                 (self.x - 1) as usize,
                 self.y as usize,
                 color.clone(),
             );
         }
+    }
+
+    fn get_background_color(&self) -> display::Color {
+        debug_assert!(1<= self.x && self.x <= 256);
+        let pattern_l = self.shift_pattern_l.get() & 1;
+        let pattern_h = self.shift_pattern_h.get() & 1;
+        let color_number = (pattern_h << 1) | pattern_l;
+        let palette_shift: u8 = ((self.x & 0x10) >> 3) as u8 | (self.y >> 7) as u8;
+        let att_entry = self.shift_att_table.get();
+        let palette_number = (att_entry >> palette_shift) & 0x03;
+        let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
+        let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
+        return self.palette.get_color(color_number_in_big_palette as usize).clone();
     }
 
     fn fetch_nametable_byte(&mut self) {
