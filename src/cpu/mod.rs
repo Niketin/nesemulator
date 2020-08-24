@@ -17,7 +17,8 @@ pub struct Cpu {
     pub skip_cycles: u8,
     pub bus: Bus,
     pub cycle: u64,
-    pub page_crossed: bool
+    pub page_crossed: bool,
+    oamdma_cycles_left: u16,
 }
 
 pub struct Status {
@@ -73,7 +74,8 @@ impl Cpu {
                 skip_cycles: 0,
                 bus,
                 cycle: 7, // TODO: fix cpu so that this can init as 0.
-                page_crossed: false
+                page_crossed: false,
+                oamdma_cycles_left: 0,
             };
         cpu.reset_program_counter();
         cpu
@@ -130,6 +132,25 @@ impl Cpu {
         
         if self.skip_cycles > 0 {
             self.skip_cycles -= 1;
+            return;
+        }
+
+        if self.bus.oamdma_occurred {
+            self.bus.oamdma_occurred = false;
+            self.oamdma_cycles_left = 513 + ((self.cycle & 1) as u16); // TODO timing of 1st (and 2nd idle cycle)
+        }
+
+        if self.oamdma_cycles_left >= 513 {
+            self.oamdma_cycles_left -= 1;
+            return;
+        }
+        else if self.oamdma_cycles_left > 0 {
+            if (1..=512).contains(&self.oamdma_cycles_left) && self.oamdma_cycles_left % 2 == 1 {
+                let address = self.bus.oamdma_high_byte | ((0x200 - self.oamdma_cycles_left) >> 1);
+                let value = self.read_8(address);
+                self.bus.ppu.as_mut().unwrap().write_oamdma(value);
+            }
+            self.oamdma_cycles_left -= 1;
             return;
         }
         self.execute_next_opcode();

@@ -123,6 +123,11 @@ impl Ppu {
         nmi_occurred
     }
 
+    pub fn write_oamdma(&mut self, value: u8) {
+        self.oam_primary[self.oamaddr as usize] = value;
+        self.oamaddr = self.oamaddr.wrapping_add(1);
+    }
+
     pub fn step(&mut self) {
         self.cycle();
     }
