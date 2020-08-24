@@ -8,6 +8,11 @@ use crate::ppu::display::Display;
 use crate::ppu::palette::Palette;
 use crate::ppu::shift_register::ShiftRegister;
 
+const MASK_STATUS_OVERFLOW: u8 = 0b0010_0000;
+const MASK_CONTROLLER_BACKGROUND_PATTERN_TABLE_ADDRESS: u8 = 0b0001_0000;
+const MASK_CONTROLLER_SPRITE_PATTERN_TABLE_ADDRESS: u8 = 0b0000_1000;
+
+
 pub struct Ppu {
     pub ppuaddr: u16,
     pub ppuctrl: u8,
@@ -33,6 +38,21 @@ pub struct Ppu {
     latch_attribute: u8,
     latch_pattern_h: u8,
     latch_pattern_l: u8,
+    oam_primary: [u8; 256],
+    oam_primary_n: u8,
+    oam_primary_m: u8,
+    oam_secondary_write_lock: bool,
+    oam_temp_value: u8,
+    oam_secondary: [u8; 32],
+    oam_secondary_n: u8,
+    oam_copying_sprite: bool,
+    oam_overflow_reads_left: u8,
+    oam_pattern_low: [u8; 8],
+    oam_pattern_high: [u8; 8],
+    oam_latches: [u8; 8],
+    oam_counters: [u8; 8],
+    oam_sprite_fetched_y: u8,
+    oam_sprite_fetched_tile_index: u8,
 }
 
 impl Ppu {
@@ -62,6 +82,21 @@ impl Ppu {
             latch_attribute: 0,
             latch_pattern_h: 0,
             latch_pattern_l: 0,
+            oam_primary: [0; 256],
+            oam_primary_n: 0,
+            oam_primary_m: 0,
+            oam_temp_value: 0,
+            oam_secondary_write_lock: false,
+            oam_secondary: [0; 32],
+            oam_secondary_n: 0,
+            oam_copying_sprite: false,
+            oam_overflow_reads_left: 0,
+            oam_pattern_low: [0; 8],
+            oam_pattern_high: [0; 8],
+            oam_latches: [0; 8],
+            oam_counters: [0; 8],
+            oam_sprite_fetched_y: 0,
+            oam_sprite_fetched_tile_index: 0,
         }
     }
 
@@ -139,16 +174,17 @@ impl Ppu {
 
         if self.y == 261 && self.x == 1 {
             self.clear_vblank();
-            // TODO: clear sprite 0 and overlow according to the timing chart.
+            self.ppustatus &= 0b1110_1111;
+            // TODO: clear sprite 0 according to the timing chart.
         }
 
         match self.y {
             0..=239 => self.visible_scanline(),          // Visible scanlines
             240 => (),                                   // Post-render scanline
-            241..=260 => self.vertical_blanking_lines(), // TODO Vertical blanking lines
-            261 => {self.fetch_stuff();
+            241..=260 => self.vertical_blanking_lines(),
+            261 => {self.fetch_stuff();                  // Pre-render scanline
                     self.vertical_blanking_lines();},
-            _ => (),
+            _ => unreachable!(),
         }
 
         self.increase_x();
@@ -207,8 +243,18 @@ impl Ppu {
     }
 
     fn fetch_stuff(&mut self) {
+        // Prepare sprites
         match self.x {
-            0 => (), // TODO: is this ok?
+            0 => (), // Idle
+            1..=64 => self.clear_oam_secondary(), // Secondary OAM clear
+            65..=256 => self.evaluate_sprites(), // Sprite evaluation for next scanline
+            257..=320 => self.fetch_sprites(), // VRAM fetches
+            _ => (),
+        }
+
+        // Fetch background stuff
+        match self.x {
+            0 => (), // TODO: is this ok? x: 0 y: 0 should be skipped every odd cycle?
             1..=256 => {
                 self.shift_patterns();
                 self.fetch_match();
@@ -224,20 +270,204 @@ impl Ppu {
         }
     }
 
+    fn clear_oam_secondary(&mut self) {
+        debug_assert!((1..=64).contains(&self.x));
+        debug_assert!((0..=239).contains(&self.y) || self.y == 261);
+
+        // Clear only on even cycles
+        if self.x % 2 == 0 {
+            self.oam_secondary[((self.x - 1) >> 1) as usize] = 0xff;
+        }
+    }
+
+    /// Evaluate sprites for next scanline
+    fn evaluate_sprites(&mut self) {
+        debug_assert!((65..=256).contains(&self.x));
+        debug_assert!((0..=239).contains(&self.y) || self.y == 261);
+
+        let odd_cycle = self.x % 2 == 1;
+
+        if self.x == 65 {
+            // Init all oam values at first call in a scanline
+            self.oam_primary_m = 0;
+            self.oam_primary_n = 0;
+            self.oam_secondary_n = 0;
+            self.oam_secondary_write_lock = false;
+            self.oam_copying_sprite = false;
+            self.oam_overflow_reads_left = 0;
+        }
+
+        if self.oam_primary_n == 64 {
+            // Pretend to fail copying by doing nothing
+            return;
+        }
+
+        if odd_cycle {
+            // Read from primary OAM
+            self.oam_temp_value = self.oam_primary[(self.oam_primary_n as usize * 4 + self.oam_primary_m as usize)];
+        }
+        else {
+            if self.oam_overflow_reads_left > 0 {
+                self.oam_overflow_reads_left -= 1;
+                return;
+            }
+
+            if !self.oam_secondary_write_lock && self.oam_secondary_n < 8 {
+                // Write to secondary OAM
+                self.oam_secondary[(self.oam_secondary_n * 4 + self.oam_primary_m) as usize] = self.oam_temp_value;
+            }
+
+            if self.oam_copying_sprite {
+                // Copy remaining elements of current sprite
+                self.oam_primary_m += 1;
+                if self.oam_primary_m == 4 {
+                    self.oam_primary_m = 0;
+                    self.oam_secondary_n += 1;
+                    self.oam_primary_n += 1;
+                    self.oam_copying_sprite = false;
+                }
+                return;
+            }
+
+            if self.oam_secondary_n == 8 {
+                // Secondary OAM full
+                self.oam_secondary_write_lock = true;
+                let sprite_y = self.oam_temp_value as u16;
+                let y_in_range = (sprite_y..sprite_y+8).contains(&self.y);
+                if y_in_range {
+                    self.ppustatus |= MASK_STATUS_OVERFLOW;
+                }
+                else {
+                    self.oam_primary_n += 1;
+                }
+                self.oam_primary_m += 1;
+                if self.oam_primary_m == 4 {
+                    self.oam_primary_m = 0;
+                    self.oam_primary_n += 1;
+                    self.oam_primary_n %= 4;
+                    self.oam_overflow_reads_left = 3;
+                }
+                return;
+            }
+
+            let y = self.oam_temp_value as u16;
+            let y_in_range = (y..y+8).contains(&self.y); // TODO check if y is off by one? sprites are never at self.y=0
+            if y_in_range {
+                self.oam_copying_sprite = true;
+                self.oam_primary_m += 1;
+                return;
+            }
+            else {
+                self.oam_primary_n += 1;
+            }
+        }
+    }
+
+    fn fetch_sprites(&mut self) {
+        debug_assert!((257..=320).contains(&self.x));
+        debug_assert!((0..=239).contains(&self.y) || self.y == 261);
+        let step = ((self.x - 257) % 8) + 1;
+        let sprite_i = ((self.x - 257)/8) as usize;
+        match step {
+            1 => { // Read y-coordinate
+                self.oam_sprite_fetched_y = self.oam_secondary[sprite_i * 4]
+            },
+            2 => { // Read tile index
+                self.oam_sprite_fetched_tile_index = self.oam_secondary[sprite_i * 4 + 1];
+            },
+            3 => { // Read attributes
+                self.oam_latches[sprite_i] = self.oam_secondary[sprite_i * 4 + 2];
+            },
+            4 => { // Read x-coordinate
+                self.oam_counters[sprite_i] = self.oam_secondary[sprite_i * 4 + 3];
+            },
+            5 => {
+                let tile_byte = self.get_low_sprite_tile_byte(
+                    self.oam_sprite_fetched_tile_index as u8,
+                    self.oam_sprite_fetched_y as u16,
+                    self.y as u8 + 1);
+                self.oam_pattern_low[sprite_i] = tile_byte;
+            },
+            6 => (),
+            7 => {
+                let tile_byte = self.get_high_sprite_tile_byte(
+                    self.oam_sprite_fetched_tile_index as u8,
+                    self.oam_sprite_fetched_y as u16,
+                    self.y as u8 + 1);
+                self.oam_pattern_high[sprite_i] = tile_byte;
+            },
+            8 => (),
+            _ => unreachable!(),
+        }
+
+    }
+
     pub fn visible_scanline(&mut self) {
         self.fetch_stuff();
+
+        let mut sprite_color: Option<display::Color> = None;
+        let show_sprites = (self.ppumask >> 4) & 1 == 1;
+        if show_sprites && 1 <= self.x && self.x <= 256 {
+            // "render"
+            for (i, counter) in self.oam_counters.iter().enumerate() {
+                if *counter != 0 {
+                    continue;
+                }
+                let pattern_high = self.oam_pattern_high[i] & 1;
+                let pattern_low = self.oam_pattern_low[i] & 1;
+                let pattern = (pattern_high << 1) | pattern_low;
+                if pattern == 0 {
+                    continue;
+                }
+                
+                let attribute = self.oam_latches[i];
+                let palette_number = (attribute & 0x3) + 4;
+                let color_address = (palette_number << 2) + pattern;
+
+                let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
+                let color =  self.palette.get_color(color_number_in_big_palette as usize).clone();
+
+                sprite_color = Some(color);
+                break;
+            }
+        }
+
+        
         if 1 <= self.x && self.x <= 256 {
-            let background_render_enabled = (self.ppumask >> 3) & 1 == 1;
-            let color = if background_render_enabled {
+            let show_background = (self.ppumask >> 3) & 1 == 1;
+
+            let background_color = if show_background {
                 self.get_background_color()
             } else {
                 self.palette.get_color(0).clone()
             };
+
+            let color = if sprite_color.is_some() {
+                sprite_color.unwrap()
+            }
+            else {
+                background_color
+            };
+
             self.display.set_pixel(
                 (self.x - 1) as usize,
                 self.y as usize,
-                color.clone(),
+                color,
             );
+
+            // Shift sprite pattern bytes
+            for i in 0..self.oam_pattern_high.len() {
+                if self.oam_counters[i] == 0 {
+                    self.oam_pattern_high[i] >>= 1;
+                    self.oam_pattern_low[i] >>= 1;
+                }
+            }
+    
+            // Decrease oam counters
+            self.oam_counters
+                .iter_mut()
+                .filter(|c| **c > 0)
+                .for_each(|c| *c -= 1);
         }
     }
 
@@ -297,18 +527,51 @@ impl Ppu {
         (x, y)
     }
 
-    fn get_pattern_table_tile_address(&self) -> u16 {
-        let pattern_table_address: u16 = (self.ppuctrl as u16 & 0x10) << 8;
+    fn get_pattern_table_tile_address(&self, pattern_table_address: u16, pattern_index: u8) -> u16 {
+        pattern_table_address | ((pattern_index as u16) << 4)
+    }
+
+    fn get_background_pattern_table_address(&self) -> u16 {
+        ((self.ppuctrl & MASK_CONTROLLER_BACKGROUND_PATTERN_TABLE_ADDRESS) as u16) << 8
+    }
+
+    fn get_sprite_pattern_table_address(&self) -> u16 {
+        ((self.ppuctrl & MASK_CONTROLLER_SPRITE_PATTERN_TABLE_ADDRESS) as u16) << 8
+    }
+
+    fn get_bg_pattern_tile_byte_address(&self) -> u16 {
+        let bg_pattern_table_address = self.get_background_pattern_table_address();
+        let bg_pattern_tile_address = self.get_pattern_table_tile_address(bg_pattern_table_address, self.latch_nametable);
         let (_, y) = self.get_next_tile_xy();
         let pattern_fine_y_offset = y & 0b0111;
-        pattern_table_address | ((self.latch_nametable as u16) << 4) | pattern_fine_y_offset
+        bg_pattern_tile_address | pattern_fine_y_offset
     }
 
     fn fetch_low_bg_tile_byte(&mut self) {
-        self.latch_pattern_l = self.bus.read(self.get_pattern_table_tile_address()).reverse_bits();
+        self.latch_pattern_l = self.bus.read(self.get_bg_pattern_tile_byte_address()).reverse_bits();
     }
 
     fn fetch_high_bg_tile_byte(&mut self) {
-        self.latch_pattern_h = self.bus.read(self.get_pattern_table_tile_address() | 0x8).reverse_bits();
+        self.latch_pattern_h = self.bus.read(self.get_bg_pattern_tile_byte_address() | 0x8).reverse_bits();
+    }
+
+    fn get_low_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u8) -> u8 {
+        let a = self.get_sprite_pattern_table_address();
+        let b = self.get_pattern_table_tile_address(a, pattern_index);
+        if (sprite_y..sprite_y+8).contains(&(scanline_y as u16)) {
+            let patter_fine_y_offset = scanline_y as u16 - sprite_y;
+            return self.bus.read(b | patter_fine_y_offset as u16).reverse_bits()
+        }
+        0
+    }
+
+    fn get_high_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u8) -> u8 {
+        let a = self.get_sprite_pattern_table_address();
+        let b = self.get_pattern_table_tile_address(a, pattern_index);
+        if (sprite_y..sprite_y+8).contains(&(scanline_y as u16)) {
+            let patter_fine_y_offset = scanline_y as u16 - sprite_y;
+            return self.bus.read(b | patter_fine_y_offset as u16 | 0x8).reverse_bits()
+        }
+        0
     }
 }
