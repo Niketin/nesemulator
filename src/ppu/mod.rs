@@ -11,6 +11,8 @@ use crate::ppu::shift_register::ShiftRegister;
 const MASK_STATUS_OVERFLOW: u8 = 0b0010_0000;
 const MASK_CONTROLLER_BACKGROUND_PATTERN_TABLE_ADDRESS: u8 = 0b0001_0000;
 const MASK_CONTROLLER_SPRITE_PATTERN_TABLE_ADDRESS: u8 = 0b0000_1000;
+const MASK_FLIP_SPRITE_HORIZONTALLY: u8 = 0b0100_0000;
+const MASK_FLIP_SPRITE_VERTICALLY: u8 = 0b1000_0000;
 
 
 pub struct Ppu {
@@ -382,18 +384,46 @@ impl Ppu {
                 self.oam_counters[sprite_i] = self.oam_secondary[sprite_i * 4 + 3];
             },
             5 => {
-                let tile_byte = self.get_low_sprite_tile_byte(
+                let flip_h = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_HORIZONTALLY > 0;
+                let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
+                
+                let sprite_y = self.oam_sprite_fetched_y;
+                let mut scanline_y = self.y as u8 + 1;
+
+                if flip_v {
+                    scanline_y = 7 - (scanline_y - sprite_y) + sprite_y;
+                }
+
+                let mut tile_byte = self.get_low_sprite_tile_byte(
                     self.oam_sprite_fetched_tile_index as u8,
-                    self.oam_sprite_fetched_y as u16,
-                    self.y as u8 + 1);
+                    sprite_y as u16,
+                    scanline_y);
+
+                if flip_h {
+                    tile_byte = tile_byte.reverse_bits(); // Flip horizontally
+                }
                 self.oam_pattern_low[sprite_i] = tile_byte;
             },
             6 => (),
             7 => {
-                let tile_byte = self.get_high_sprite_tile_byte(
+                let flip_h = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_HORIZONTALLY > 0;
+                let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
+                
+                let sprite_y = self.oam_sprite_fetched_y;
+                let mut scanline_y = self.y as u8 + 1;
+
+                if flip_v {
+                    scanline_y = 7 - (scanline_y - sprite_y) + sprite_y;
+                }
+
+                let mut tile_byte = self.get_high_sprite_tile_byte(
                     self.oam_sprite_fetched_tile_index as u8,
-                    self.oam_sprite_fetched_y as u16,
-                    self.y as u8 + 1);
+                    sprite_y as u16,
+                    scanline_y);
+
+                if flip_h {
+                    tile_byte = tile_byte.reverse_bits(); // Flip horizontally
+                }
                 self.oam_pattern_high[sprite_i] = tile_byte;
             },
             8 => (),
