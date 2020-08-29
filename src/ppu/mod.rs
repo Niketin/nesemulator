@@ -388,7 +388,7 @@ impl Ppu {
                 let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
                 
                 let sprite_y = self.oam_sprite_fetched_y;
-                let mut scanline_y = self.y as u8 + 1;
+                let mut scanline_y = self.y as u8;
 
                 if flip_v {
                     scanline_y = 7 - (scanline_y - sprite_y) + sprite_y;
@@ -410,7 +410,7 @@ impl Ppu {
                 let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
                 
                 let sprite_y = self.oam_sprite_fetched_y;
-                let mut scanline_y = self.y as u8 + 1;
+                let mut scanline_y = self.y as u8;
 
                 if flip_v {
                     scanline_y = 7 - (scanline_y - sprite_y) + sprite_y;
