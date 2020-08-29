@@ -384,52 +384,40 @@ impl Ppu {
                 self.oam_counters[sprite_i] = self.oam_secondary[sprite_i * 4 + 3];
             },
             5 => {
-                let flip_h = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_HORIZONTALLY > 0;
-                let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
-                
-                let sprite_y = self.oam_sprite_fetched_y;
-                let mut scanline_y = self.y as u8;
-
-                if flip_v {
-                    scanline_y = 7 - (scanline_y - sprite_y) + sprite_y;
-                }
-
-                let mut tile_byte = self.get_low_sprite_tile_byte(
-                    self.oam_sprite_fetched_tile_index as u8,
-                    sprite_y as u16,
-                    scanline_y);
-
-                if flip_h {
-                    tile_byte = tile_byte.reverse_bits(); // Flip horizontally
-                }
-                self.oam_pattern_low[sprite_i] = tile_byte;
+                self.oam_pattern_low[sprite_i] = self.fetch_sprite_tile_byte(
+                    sprite_i, Ppu::get_low_sprite_tile_byte);
             },
             6 => (),
             7 => {
-                let flip_h = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_HORIZONTALLY > 0;
-                let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
-                
-                let sprite_y = self.oam_sprite_fetched_y;
-                let mut scanline_y = self.y as u8;
-
-                if flip_v {
-                    scanline_y = 7 - (scanline_y - sprite_y) + sprite_y;
-                }
-
-                let mut tile_byte = self.get_high_sprite_tile_byte(
-                    self.oam_sprite_fetched_tile_index as u8,
-                    sprite_y as u16,
-                    scanline_y);
-
-                if flip_h {
-                    tile_byte = tile_byte.reverse_bits(); // Flip horizontally
-                }
-                self.oam_pattern_high[sprite_i] = tile_byte;
+                self.oam_pattern_high[sprite_i] = self.fetch_sprite_tile_byte(
+                    sprite_i, Ppu::get_high_sprite_tile_byte);
             },
             8 => (),
             _ => unreachable!(),
         }
+    }
 
+    fn fetch_sprite_tile_byte(&mut self, sprite_i: usize, sprite_tile_byte_function: fn(&mut Ppu, u8, u16, u8) -> u8) -> u8{
+        let flip_h = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_HORIZONTALLY > 0;
+        let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
+
+        let sprite_y = self.oam_sprite_fetched_y;
+        let mut scanline_y = self.y as u8;
+
+        if flip_v {
+            scanline_y = 7 - (scanline_y - sprite_y) + sprite_y; // Flip vertically
+        }
+
+        let mut tile_byte = sprite_tile_byte_function(
+            self,
+            self.oam_sprite_fetched_tile_index as u8,
+            sprite_y as u16,
+            scanline_y);
+
+        if flip_h {
+            tile_byte = tile_byte.reverse_bits(); // Flip horizontally
+        }
+        tile_byte
     }
 
     pub fn visible_scanline(&mut self) {
