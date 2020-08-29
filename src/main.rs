@@ -1,6 +1,6 @@
 extern crate sdl2;
 
-use emulator::Emulator;
+use emulator::{Emulator, Button};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -65,10 +65,44 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'running,
+
+                Event::KeyDown {..} | Event::KeyUp {..} => handle_emulator_input(event, &mut emulator),
                 _ => {}
             }
         }
         // The rest of the game loop goes here...
         //::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
+}
+
+fn handle_emulator_input(event: Event, emulator: &mut Emulator) {
+    let value = match event {
+        Event::KeyDown { repeat: true, ..} => return,
+        Event::KeyUp { repeat: true, ..} => return,
+        Event::KeyDown {..} => true,
+        _ => false,
+    };
+
+    let button = match event {
+        Event::KeyDown { keycode: Some(Keycode::Z), .. } => Button::A,
+        Event::KeyDown { keycode: Some(Keycode::X), .. } => Button::B,
+        Event::KeyDown { keycode: Some(Keycode::N), .. } => Button::Start,
+        Event::KeyDown { keycode: Some(Keycode::M), .. } => Button::Select,
+        Event::KeyDown { keycode: Some(Keycode::Up), .. } => Button::Up,
+        Event::KeyDown { keycode: Some(Keycode::Down), .. } => Button::Down,
+        Event::KeyDown { keycode: Some(Keycode::Left), .. } => Button::Left,
+        Event::KeyDown { keycode: Some(Keycode::Right), .. } => Button::Right,
+
+        Event::KeyUp { keycode: Some(Keycode::Z), .. } => Button::A,
+        Event::KeyUp { keycode: Some(Keycode::X), .. } => Button::B,
+        Event::KeyUp { keycode: Some(Keycode::N), .. } => Button::Start,
+        Event::KeyUp { keycode: Some(Keycode::M), .. } => Button::Select,
+        Event::KeyUp { keycode: Some(Keycode::Up), .. } => Button::Up,
+        Event::KeyUp { keycode: Some(Keycode::Down), .. } => Button::Down,
+        Event::KeyUp { keycode: Some(Keycode::Left), .. } => Button::Left,
+        Event::KeyUp { keycode: Some(Keycode::Right), .. } => Button::Right,
+        _ => return
+    };
+
+    emulator.set_controller_state(button, value);
 }

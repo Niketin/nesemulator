@@ -1,6 +1,7 @@
 use crate::cpu::ram::Ram;
 use crate::cartridge::Cartridge;
 use crate::ppu::Ppu;
+use crate::controller::Controller;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -11,6 +12,7 @@ pub struct Bus {
     pub ppu: Option<Ppu>,
     pub oamdma_occurred: bool,
     pub oamdma_high_byte: u16,
+    pub controller: Option<Controller>,
 }
 
 impl Bus {
@@ -19,11 +21,15 @@ impl Bus {
         if size != 0x0800 {
             panic!("Creating a new Bus: CPU RAM does not have correct size (0x0800)");
         }
-        Bus { ram, cartridge, ppu: None, oamdma_occurred: false, oamdma_high_byte: 0 }
+        Bus { ram, cartridge, ppu: None, controller: None, oamdma_occurred: false, oamdma_high_byte: 0 }
     }
 
     pub fn set_ppu(&mut self, ppu: Ppu) {
         self.ppu = Some(ppu);
+    }
+
+    pub fn set_controller(&mut self, controller: Controller) {
+        self.controller = Some(controller);
     }
 
     pub fn read(&mut self, address: u16) -> u8 {
@@ -83,9 +89,15 @@ impl Bus {
         };
     }
 
-    fn read_apu_io_registers(&self, address: u16) -> u8 {
+    fn read_apu_io_registers(&mut self, address: u16) -> u8 {
         debug_assert!((0x4000..=0x401f).contains(&address));
-        0 // TODO implement this
+        match address {
+            0x4000..=0x4015 => 0,
+            0x4016 => {
+                self.controller.as_mut().map_or(1, |c| c.read()) },
+            0x4017..=0x401f => 0,
+            _ => unreachable!()
+        }
     }
 
     fn write_apu_io_registers(&mut self, address: u16, value: u8) {
@@ -93,7 +105,9 @@ impl Bus {
         match address {
             0x4000..=0x4013 => (), // TODO Implement
             0x4014 => self.oamdma(value),
-            0x4015..=0x401f => (), // TODO Implement
+            0x4015 => (), // TODO Implement
+            0x4016 => { self.controller.as_mut().map(|c| c.write(value)); },
+            0x4017..=0x401f => (), // TODO Implement
             _ => unreachable!()
         }
     }

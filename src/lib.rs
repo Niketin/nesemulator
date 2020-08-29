@@ -1,10 +1,15 @@
 mod cartridge;
 pub mod cpu;
 pub mod ppu;
+mod controller;
 
 use crate::cartridge::Cartridge;
 use crate::ppu::Ppu;
 use crate::cpu::Cpu;
+use crate::controller::Controller;
+
+pub use crate::controller::Button;
+
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -32,10 +37,11 @@ impl Emulator {
 
         let mut emulator = Emulator {
             _cartridge: cartridge,
-            cpu
+            cpu,
         };
 
         emulator.cpu.bus.set_ppu(ppu);
+        emulator.cpu.bus.set_controller(Controller::new());
         emulator
     }
 
@@ -45,6 +51,10 @@ impl Emulator {
         ppu.step();
         ppu.step();
         ppu.step();
+    }
+
+    pub fn set_controller_state(&mut self, button: Button, value: bool) {
+        self.cpu.bus.controller.as_mut().map(|c| c.set_button_state(button, value));
     }
     
 }
