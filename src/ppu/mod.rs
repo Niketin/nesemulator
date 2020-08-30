@@ -353,7 +353,7 @@ impl Ppu {
             }
 
             let y = self.oam_temp_value as u16;
-            let y_in_range = (y..y+8).contains(&self.y); // TODO check if y is off by one? sprites are never at self.y=0
+            let y_in_range = (y + 1..y+9).contains(&self.next_y());
             if y_in_range {
                 self.oam_copying_sprite = true;
                 self.oam_primary_m += 1;
@@ -397,21 +397,30 @@ impl Ppu {
         }
     }
 
-    fn fetch_sprite_tile_byte(&mut self, sprite_i: usize, sprite_tile_byte_function: fn(&mut Ppu, u8, u16, u8) -> u8) -> u8{
+    fn fetch_sprite_tile_byte(&mut self, sprite_i: usize, sprite_tile_byte_function: fn(&mut Ppu, u8, u16, u16) -> u8) -> u8 {
+        debug_assert!((257..=320).contains(&self.x) && (((self.x - 257) % 8) + 1 == 5 || ((self.x - 257) % 8) + 1 == 7));
+        debug_assert!((0..=239).contains(&self.y) || self.y == 261);
+        let sprite_y = self.oam_sprite_fetched_y;
+        if (0xef..=0xff).contains(&sprite_y) {
+            return 0; // Hide the sprite
+        }
+        let next_y = self.next_y();
+        if !(sprite_y as u16 + 1..sprite_y as u16 + 9).contains(&next_y) {
+            return 0;
+        }
+        let mut scanline_y = next_y;
+
         let flip_h = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_HORIZONTALLY > 0;
         let flip_v = self.oam_latches[sprite_i] & MASK_FLIP_SPRITE_VERTICALLY > 0;
-
-        let sprite_y = self.oam_sprite_fetched_y;
-        let mut scanline_y = self.y as u8;
-
+        let sprite_y_fixed = sprite_y as u16 + 1;
         if flip_v {
-            scanline_y = 7 - (scanline_y - sprite_y) + sprite_y; // Flip vertically
+            scanline_y = 7 - (scanline_y - sprite_y_fixed) + sprite_y_fixed; // Flip vertically
         }
 
         let mut tile_byte = sprite_tile_byte_function(
             self,
             self.oam_sprite_fetched_tile_index as u8,
-            sprite_y as u16,
+            sprite_y_fixed,
             scanline_y);
 
         if flip_h {
@@ -573,21 +582,21 @@ impl Ppu {
         self.latch_pattern_h = self.bus.read(self.get_bg_pattern_tile_byte_address() | 0x8).reverse_bits();
     }
 
-    fn get_low_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u8) -> u8 {
+    fn get_low_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u16) -> u8 {
         let a = self.get_sprite_pattern_table_address();
         let b = self.get_pattern_table_tile_address(a, pattern_index);
-        if (sprite_y..sprite_y+8).contains(&(scanline_y as u16)) {
-            let patter_fine_y_offset = scanline_y as u16 - sprite_y;
+        if (sprite_y..sprite_y+8).contains(&scanline_y) {
+            let patter_fine_y_offset = scanline_y - sprite_y;
             return self.bus.read(b | patter_fine_y_offset as u16).reverse_bits()
         }
         0
     }
 
-    fn get_high_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u8) -> u8 {
+    fn get_high_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u16) -> u8 {
         let a = self.get_sprite_pattern_table_address();
         let b = self.get_pattern_table_tile_address(a, pattern_index);
-        if (sprite_y..sprite_y+8).contains(&(scanline_y as u16)) {
-            let patter_fine_y_offset = scanline_y as u16 - sprite_y;
+        if (sprite_y..sprite_y+8).contains(&scanline_y) {
+            let patter_fine_y_offset = scanline_y - sprite_y;
             return self.bus.read(b | patter_fine_y_offset as u16 | 0x8).reverse_bits()
         }
         0
