@@ -20,7 +20,7 @@ impl Cpu {
         self.status.carry = values_added > 0xFF;
         self.status.zero = values_added & 0xFF == 0;
         self.status.negative = values_added & 0x80 == 0x80;
-        self.status.overflow = value & 0x80 == self.accumulator & 0x80 && value as u16 & 0x80 != values_added & 0x80;;
+        self.status.overflow = value & 0x80 == self.accumulator & 0x80 && value as u16 & 0x80 != values_added & 0x80;
         self.accumulator = (values_added & 0xFF) as u8;
         if self.page_crossed { self.skip_cycles += 1; }
     }
@@ -108,7 +108,12 @@ impl Cpu {
     }
 
     pub fn brk(&mut self, _address: u16) {
-        unimplemented!(); // TODO: implement this
+        self.program_counter += 1; // BRK is actually 2-byte instruction
+        self.stack_push_16(self.program_counter);
+        self.stack_push_8(self.status.get_as_byte());
+        self.status.interrupt = true;
+        let irq_vector = self.read_16(0xfffe);
+        self.program_counter = irq_vector;
     }
 
     pub fn bvc(&mut self, address: u16) {

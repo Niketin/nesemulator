@@ -1,11 +1,15 @@
 mod cartridge;
 pub mod cpu;
 pub mod ppu;
+mod controller;
 
 use crate::cartridge::Cartridge;
-use crate::cpu::ram::Ram;
 use crate::ppu::Ppu;
 use crate::cpu::Cpu;
+use crate::controller::Controller;
+
+pub use crate::controller::Button;
+
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -22,8 +26,7 @@ impl Emulator {
         // Some test code
     
         let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(path.clone())));
-        let ppu_vram = Ram::new(0x0800);
-        let ppu_bus = ppu::bus::Bus::new(ppu_vram, cartridge.clone());
+        let ppu_bus = ppu::bus::Bus::new(cartridge.clone());
         
         let ppu = Ppu::new(ppu_bus);
 
@@ -34,18 +37,24 @@ impl Emulator {
 
         let mut emulator = Emulator {
             _cartridge: cartridge,
-            cpu
+            cpu,
         };
 
         emulator.cpu.bus.set_ppu(ppu);
+        emulator.cpu.bus.set_controller(Controller::new());
         emulator
     }
 
-    pub fn run(&mut self) {
-        loop {
-            self.cpu.step();
-            self.cpu.bus.ppu.as_mut().unwrap().step();
-        }
+    pub fn step(&mut self) {
+        self.cpu.step();
+        let ppu = self.cpu.bus.ppu.as_mut().unwrap();
+        ppu.step();
+        ppu.step();
+        ppu.step();
+    }
+
+    pub fn set_controller_state(&mut self, button: Button, value: bool) {
+        self.cpu.bus.controller.as_mut().map(|c| c.set_button_state(button, value));
     }
     
 }
@@ -72,6 +81,10 @@ mod tests {
         let cpu_bus = cpu::bus::Bus::new(cpu_ram, cartridge.clone());
         let mut cpu = cpu::Cpu::new(cpu_bus);
 
+        let ppu_bus = ppu::bus::Bus::new(cartridge.clone());
+        let ppu = Ppu::new(ppu_bus);
+        cpu.bus.set_ppu(ppu);
+
         cpu.set_program_counter(0xC000);
 
         let f = File::open("tests/nestest.log")?;
@@ -94,7 +107,13 @@ mod tests {
             }
 
             // Skip cycles
-            while cpu.skip_cycles != 0 { cpu.step();}
+            while cpu.skip_cycles != 0 {
+                cpu.step();
+                let ppu = cpu.bus.ppu.as_mut().unwrap();
+                ppu.step();
+                ppu.step();
+                ppu.step();
+            }
 
             // Program counter check
             let log_program_counter = match u16::from_str_radix(&line[0..4], 16) {
@@ -113,9 +132,11 @@ mod tests {
                 Helper {slice: &line[65..67], name: "status",        base:  16, value: cpu.status.get_as_byte() as u64},
                 Helper {slice: &line[71..73], name: "stack pointer", base:  16, value: cpu.stack_pointer as u64},
                 Helper {slice: &line[90..],   name: "cycle",         base:  10, value: cpu.cycle},
+                Helper {slice: &line[78..81], name: "ppu x",         base:  10, value: cpu.bus.ppu.as_ref().unwrap().x as u64},
+                Helper {slice: &line[82..85], name: "ppu y",         base:  10, value: cpu.bus.ppu.as_ref().unwrap().y as u64},
             ];
             for help in h {
-                let log_value = match u64::from_str_radix(help.slice, help.base) {
+                let log_value = match u64::from_str_radix(help.slice.trim(), help.base) {
                     Ok(t) => t,
                     Err(_) => panic!("Detected wrong format while parsing {} from nestest.log", help.name),
                 };
@@ -128,6 +149,10 @@ mod tests {
             // Prepare for next line
             line_number += 1;
             cpu.step();
+            let ppu = cpu.bus.ppu.as_mut().unwrap();
+            ppu.step();
+            ppu.step();
+            ppu.step();
         }
 
         Ok(())

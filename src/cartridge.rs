@@ -1,7 +1,7 @@
 use std::fs;
 use std::iter::FromIterator;
 use crate::cpu::ram::Ram;
-
+use log::info;
 
 const HEADER_SIZE: usize = 16;
 const PRG_ROM_PAGE_SIZE: usize = 0x4000; // 16384
@@ -17,6 +17,7 @@ pub struct Cartridge {
     mem: Vec<u8>,
     prg_rom: Vec<u8>,
     chr_rom: Vec<u8>,
+    chr_ram: Vec<u8>,
     ines_format: bool,
     nes20_format: bool,
     prg_rom_pages: usize,
@@ -30,6 +31,7 @@ impl Cartridge {
             mem: Vec::default(),
             prg_rom: Vec::default(),
             chr_rom: Vec::default(),
+            chr_ram: vec![0; 0x2000],
             prg_rom_pages: 0,
             chr_rom_pages: 0,
             ines_format: false,
@@ -73,16 +75,12 @@ impl Cartridge {
 
     fn update_prg_rom_size(&mut self) {
         self.prg_rom_pages = self.mem[4] as usize;
-        if self.prg_rom_pages == 0 {
-            panic!("Invalid ROM: non-positive prg rom size.");
-        }
+        info!("prg rom pages: {}", self.prg_rom_pages);
     }
 
     fn update_chr_rom_size(&mut self) {
         self.chr_rom_pages = self.mem[5] as usize;
-        if self.chr_rom_pages == 0 {
-            panic!("Invalid ROM: non-positive chr rom size.");
-        }
+        info!("chr rom pages: {}", self.chr_rom_pages);
     }
 
     fn update_mapper_number(&self) -> u8 {
@@ -129,43 +127,53 @@ impl Cartridge {
     }
 
     pub fn read_from_pattern_table(&self, address: u16) -> u8 {
+        if self.chr_rom.is_empty() {
+            return self.chr_ram[address as usize];
+        }
         self.chr_rom[address as usize]
+    }
+
+    pub fn write_to_pattern_table(&mut self, address: u16, value: u8) {
+        if self.chr_rom.is_empty() {
+            self.chr_ram[address as usize] = value;
+        }
     }
 
     pub fn read_from_nametable(&self, address: u16, vram: &Ram) -> u8 {
         use NametableMirroring::*;
         let mirroring = self.fetch_mirroring();
-        match (mirroring, address) {
+        let offset = match (mirroring, address) {
             // vram 0x0000..=0x03FF
-            (Vertical,   0x2000..=0x23FF) => vram.read(address as usize - 0x2000),
-            (Vertical,   0x2800..=0x2BFF) => vram.read(address as usize - 0x2800),
-            (Horizontal, 0x2000..=0x23FF) => vram.read(address as usize - 0x2000),
-            (Horizontal, 0x2400..=0x27FF) => vram.read(address as usize - 0x2400),
+            (Vertical,   0x2000..=0x23FF) => 0x2000,
+            (Vertical,   0x2800..=0x2BFF) => 0x2800,
+            (Horizontal, 0x2000..=0x23FF) => 0x2000,
+            (Horizontal, 0x2400..=0x27FF) => 0x2400,
             // vram 0x0400..=0x07FF
-            (Vertical,   0x2400..=0x27FF) => vram.read(address as usize - 0x2000),
-            (Vertical,   0x2C00..=0x2FFF) => vram.read(address as usize - 0x2800),
-            (Horizontal, 0x2800..=0x2BFF) => vram.read(address as usize - 0x2400),
-            (Horizontal, 0x2C00..=0x2FFF) => vram.read(address as usize - 0x2800),
+            (Vertical,   0x2400..=0x27FF) => 0x2000,
+            (Vertical,   0x2C00..=0x2FFF) => 0x2800,
+            (Horizontal, 0x2800..=0x2BFF) => 0x2400,
+            (Horizontal, 0x2C00..=0x2FFF) => 0x2800,
             _ => panic!()
-        }
+        };
+        vram.read(address as usize - offset)
     }
 
     pub fn write_to_nametable(&self, address: u16, vram: &mut Ram, value: u8) {
         use NametableMirroring::*;
         let mirroring = self.fetch_mirroring();
-        match (mirroring, address) {
+        let offset = match (mirroring, address) {
             // vram 0x0000..=0x03FF
-            (Vertical,   0x2000..=0x23FF) => vram.write(address as usize - 0x2000, value),
-            (Vertical,   0x2800..=0x2BFF) => vram.write(address as usize - 0x2800, value),
-            (Horizontal, 0x2000..=0x23FF) => vram.write(address as usize - 0x2000, value),
-            (Horizontal, 0x2400..=0x27FF) => vram.write(address as usize - 0x2400, value),
+            (Vertical,   0x2000..=0x23FF) => 0x2000,
+            (Vertical,   0x2800..=0x2BFF) => 0x2800,
+            (Horizontal, 0x2000..=0x23FF) => 0x2000,
+            (Horizontal, 0x2400..=0x27FF) => 0x2400,
             // vram 0x0400..=0x07FF
-            (Vertical,   0x2400..=0x27FF) => vram.write(address as usize - 0x2000, value),
-            (Vertical,   0x2C00..=0x2FFF) => vram.write(address as usize - 0x2800, value),
-            (Horizontal, 0x2800..=0x2BFF) => vram.write(address as usize - 0x2400, value),
-            (Horizontal, 0x2C00..=0x2FFF) => vram.write(address as usize - 0x2800, value),
+            (Vertical,   0x2400..=0x27FF) => 0x2000,
+            (Vertical,   0x2C00..=0x2FFF) => 0x2800,
+            (Horizontal, 0x2800..=0x2BFF) => 0x2400,
+            (Horizontal, 0x2C00..=0x2FFF) => 0x2800,
             _ => panic!()
         };
+        vram.write(address as usize - offset, value);
     }
-
 }
