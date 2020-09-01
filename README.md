@@ -1,17 +1,34 @@
 # NES emulator
 
 A NES emulator written in Rust.
+
 The purpose of this project is to learn how the NES works and implement a playable emulator.
 
-## Status of the project
-The project is under development. 
+## Features
 
-- [ ] CPU.
-  - [ ] nestest.
-    Currently the nestest passes when CPU & PPU cycles are not taken into account i.e. instructions work almost as expected. WIP
-- [ ] PPU. WIP
-- [ ] APU
+- Supports 1 player
+- Tested playable Playable roms
+  - Donkey Kong
+  - Donkey Kong Jr.
+  - Balloon Fight
+- No sound
+- Passes nestest
+- Mappers
+  - NROM
 
+
+## Controls
+
+| NES controller button | Keyboard key |
+| --- | --- |
+| A | Z |
+| B | X |
+| Start | N |
+| Select | M |
+| Up | Up |
+| Down | Down |
+| Left | Left |
+| Right | Right |
 
 ## Building the project
 
@@ -21,7 +38,13 @@ Latest Rust stable and SDL2
 
 ### Build instructions
 ```
-cargo build
+cargo build --release
+```
+
+## Running rom
+
+```
+cargo run --release -- <path_to_rom>
 ```
 
 ## Running tests
@@ -32,4 +55,3 @@ Tests can be run with
 ```
 cargo test
 ```
-
