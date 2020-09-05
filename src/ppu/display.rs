@@ -37,7 +37,7 @@ impl Default for Display {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -53,4 +53,3 @@ impl Color {
         Color { r, g, b }
     }
 }
-

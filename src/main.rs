@@ -13,7 +13,7 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("nesemulator", 1024, 960)
+        .window("nesemulator", 1536, 960)
         .position_centered()
         .build()
         .unwrap();
@@ -29,9 +29,20 @@ fn main() {
 
     let texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext> =
         canvas.texture_creator();
-    let mut texture = texture_creator
+    let mut texture_game = texture_creator
         .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 256, 240)
         .unwrap();
+    let mut texture_pattern_table_0 = texture_creator
+        .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 128, 128)
+        .unwrap();
+    let mut texture_pattern_table_1 = texture_creator
+        .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 128, 128)
+        .unwrap();
+    let game_rect = Some(sdl2::rect::Rect::new(0, 0, 1024, 960));
+    let pattern_table_0_rect = Some(sdl2::rect::Rect::new(1024, 0, 512, 512));
+    let pattern_table_1_rect = Some(sdl2::rect::Rect::new(1024, 512, 512, 512));
+    let mut pattern_table_0_pixels = emulator::ppu::display::Display::new(128, 128);
+    let mut pattern_table_1_pixels = emulator::ppu::display::Display::new(128, 128);
 
     'running: loop {
         emulator.step();
@@ -44,12 +55,28 @@ fn main() {
             let _width = display.width;
             let _height = display.height;
             let pixels = display.get_pixels();
-            if let Err(e) = texture.update(None, pixels, 256 * 3) {
-                panic!("Main loop: failed to update the texture: {}", e);
-            }
-            if let Err(e) = canvas.copy(&texture, None, None) {
-                panic!("Main loop: failed to copy the texture in to canvas: {}", e);
-            }
+
+            // Update game screen
+            texture_game.update(None, pixels, 256 * 3)
+                .expect("Main loop: failed to update the texture");
+            canvas.copy(&texture_game, None, game_rect)
+                .expect("Main loop: failed to copy the texture in to canvas: {}");
+
+            // Update pattern table
+
+            ppu.get_tiles(0x0000, &mut pattern_table_0_pixels);
+            ppu.get_tiles(0x1000, &mut pattern_table_1_pixels);
+
+
+            texture_pattern_table_0.update(None, pattern_table_0_pixels.get_pixels(), 128 * 3)
+                .expect("Main loop: failed to update the texture");
+            texture_pattern_table_1.update(None, pattern_table_1_pixels.get_pixels(), 128 * 3)
+                .expect("Main loop: failed to update the texture");
+            canvas.copy(&texture_pattern_table_0, None, pattern_table_0_rect)
+                .expect("Main loop: failed to copy the texture in to canvas: {}");
+            canvas.copy(&texture_pattern_table_1, None, pattern_table_1_rect)
+                .expect("Main loop: failed to copy the texture in to canvas: {}");
+
             canvas.present();
             waiting_to_render = false;
 

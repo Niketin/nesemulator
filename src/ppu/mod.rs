@@ -601,4 +601,31 @@ impl Ppu {
         }
         0
     }
+
+    pub fn get_tiles(&mut self, pattern_table_address: u16, colors: &mut Display) {
+        debug_assert!(colors.height == 128 && colors.width == 128);
+        let colors_grey = [
+            display::Color::new_rgb(0, 0, 0),
+            display::Color::new_rgb(85,85, 85),
+            display::Color::new_rgb(170, 170, 170),
+            display::Color::new_rgb(255, 255, 255)];
+
+        for tile_row in 0x0..=0xf {
+            for fine_y_offset in 0x0..=0x7 {
+                for tile_col in 0x0..=0xf {
+                    let pattern_address = pattern_table_address | (tile_row << 8) | (tile_col << 4) | fine_y_offset;
+                    let pattern_low = self.bus.read(pattern_address);
+                    let pattern_high = self.bus.read(pattern_address | 0b0000_1000);
+                    for x in 0..=7 {
+                        let shift = 7 - x;
+                        let low_bit = (pattern_low >> shift) & 1;
+                        let high_bit = (pattern_high >> shift) & 1;
+                        let pattern = low_bit | (high_bit << 1);
+                        let i: usize = ((tile_row as usize) << (10)) | ((fine_y_offset as usize) << (7)) | ((tile_col as usize) << 3) | x as usize;
+                        colors.set_pixel(i % 128, i / 128, colors_grey[pattern as usize]);
+                    }
+                }
+            }
+        }
+    }
 }
