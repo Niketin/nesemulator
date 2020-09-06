@@ -7,7 +7,7 @@ The purpose of this project is to learn how the NES works and implement a playab
 ## Features
 
 - Supports 1 player
-- Tested playable Playable roms
+- Tested playable roms
   - Donkey Kong
   - Donkey Kong Jr.
   - Balloon Fight
