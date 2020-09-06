@@ -220,14 +220,15 @@ impl Ppu {
 
     fn fetch_match(&mut self) {
         match ((self.x - 1) % 8) + 1 {
-            1 => self.update_shift_registers_from_latches(),
+            1 => (), //
             2 => self.fetch_nametable_byte(),
             3 => (),
             4 => self.fetch_attribute_table_byte(),
             5 => (),
             6 => self.load_low_background_tile_byte_latch(),
             7 => (),
-            8 => self.load_high_background_tile_byte_latch(),
+            8 => {self.load_high_background_tile_byte_latch();
+                self.update_shift_registers_from_latches();},
             _ => unreachable!(),
         }
     }
@@ -504,9 +505,10 @@ impl Ppu {
         let pattern_l = self.shift_pattern_l.get() & 1;
         let pattern_h = self.shift_pattern_h.get() & 1;
         let color_number = (pattern_h << 1) | pattern_l;
-        let palette_shift: u8 = ((self.x & 0x10) >> 3) as u8 | (self.y >> 7) as u8;
+        // attribute_shift is in format 0b0000_0rb0 where r is right and b is bottom.
+        let attribute_shift: u8 = ((self.x & 0x10) >> 3) as u8 | ((self.y & 0x10) >> 2) as u8;
         let att_entry = self.shift_att_table.get();
-        let palette_number = (att_entry >> palette_shift) & 0x03;
+        let palette_number = (att_entry >> attribute_shift) & 0x03;
         let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
         let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
         return self.palette.get_color(color_number_in_big_palette as usize).clone();
