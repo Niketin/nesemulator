@@ -45,11 +45,11 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn new() -> Color {
+    pub const fn new() -> Color {
         Color { r: 0, g: 0, b: 0}
     }
 
-    pub fn new_rgb(r: u8, g: u8, b: u8) -> Color {
+    pub const fn new_rgb(r: u8, g: u8, b: u8) -> Color {
         Color { r, g, b }
     }
 }

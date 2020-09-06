@@ -1,5 +1,11 @@
 use crate::ppu::display::Color;
 
+pub static PALETTE_GREYSCALE: [Color; 4] = [
+    Color::new_rgb(0, 0, 0),
+    Color::new_rgb(85,85, 85),
+    Color::new_rgb(170, 170, 170),
+    Color::new_rgb(255, 255, 255)];
+
 pub struct Palette {
     colors: Vec<Color>,
 }

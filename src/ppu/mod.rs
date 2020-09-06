@@ -38,8 +38,8 @@ pub struct Ppu {
     shift_pattern_h: ShiftRegister,
     latch_nametable: u8,
     latch_attribute: u8,
-    latch_pattern_h: u8,
-    latch_pattern_l: u8,
+    latch_background_pattern_high: u8,
+    latch_background_pattern_low: u8,
     oam_primary: [u8; 256],
     oam_primary_n: u8,
     oam_primary_m: u8,
@@ -82,8 +82,8 @@ impl Ppu {
             shift_pattern_h: ShiftRegister::new(2),
             latch_nametable: 0,
             latch_attribute: 0,
-            latch_pattern_h: 0,
-            latch_pattern_l: 0,
+            latch_background_pattern_high: 0,
+            latch_background_pattern_low: 0,
             oam_primary: [0; 256],
             oam_primary_n: 0,
             oam_primary_m: 0,
@@ -225,9 +225,9 @@ impl Ppu {
             3 => (),
             4 => self.fetch_attribute_table_byte(),
             5 => (),
-            6 => self.fetch_low_bg_tile_byte(),
+            6 => self.load_low_background_tile_byte_latch(),
             7 => (),
-            8 => self.fetch_high_bg_tile_byte(),
+            8 => self.load_high_background_tile_byte_latch(),
             _ => unreachable!(),
         }
     }
@@ -235,8 +235,8 @@ impl Ppu {
     fn update_shift_registers_from_latches(&mut self) {
         self.shift_att_table.shift_bytes();
         self.shift_att_table.set(self.latch_attribute);
-        self.shift_pattern_l.set(self.latch_pattern_l);
-        self.shift_pattern_h.set(self.latch_pattern_h);
+        self.shift_pattern_l.set(self.latch_background_pattern_low);
+        self.shift_pattern_h.set(self.latch_background_pattern_high);
     }
 
     fn shift_patterns(&mut self) {
@@ -385,19 +385,19 @@ impl Ppu {
             },
             5 => {
                 self.oam_pattern_low[sprite_i] = self.fetch_sprite_tile_byte(
-                    sprite_i, Ppu::get_low_sprite_tile_byte);
+                    sprite_i, false);
             },
             6 => (),
             7 => {
                 self.oam_pattern_high[sprite_i] = self.fetch_sprite_tile_byte(
-                    sprite_i, Ppu::get_high_sprite_tile_byte);
+                    sprite_i, true);
             },
             8 => (),
             _ => unreachable!(),
         }
     }
 
-    fn fetch_sprite_tile_byte(&mut self, sprite_i: usize, sprite_tile_byte_function: fn(&mut Ppu, u8, u16, u16) -> u8) -> u8 {
+    fn fetch_sprite_tile_byte(&mut self, sprite_i: usize, high_plane: bool) -> u8 {
         debug_assert!((257..=320).contains(&self.x) && (((self.x - 257) % 8) + 1 == 5 || ((self.x - 257) % 8) + 1 == 7));
         debug_assert!((0..=239).contains(&self.y) || self.y == 261);
         let sprite_y = self.oam_sprite_fetched_y;
@@ -417,11 +417,12 @@ impl Ppu {
             scanline_y = 7 - (scanline_y - sprite_y_fixed) + sprite_y_fixed; // Flip vertically
         }
 
-        let mut tile_byte = sprite_tile_byte_function(
-            self,
-            self.oam_sprite_fetched_tile_index as u8,
+        let mut tile_byte = self.get_sprite_tile_byte(
+            self.oam_sprite_fetched_tile_index,
             sprite_y_fixed,
-            scanline_y);
+            scanline_y,
+            high_plane
+        );
 
         if flip_h {
             tile_byte = tile_byte.reverse_bits(); // Flip horizontally
@@ -554,62 +555,88 @@ impl Ppu {
         (x, y)
     }
 
+    /// Returns the address of the given tile in the given pattern table.
+    ///
+    /// Pattern table address should be either 0x0000 or 0x1000.
+    /// Pattern index is anything from 0..=255.
+    /// Resulting address should be of the form 0b000X_YYYY_YYYY_0000
+    /// where X is the pattern table index and Y is the index of the pattern tile.
+    ///
+    /// Useful links:
+    /// [Nesdev wiki - PPU pattern tables]
+    ///
+    /// [Nesdev wiki - PPU pattern tables]: https://wiki.nesdev.com/w/index.php/PPU_pattern_tables
     fn get_pattern_table_tile_address(&self, pattern_table_address: u16, pattern_index: u8) -> u16 {
         pattern_table_address | ((pattern_index as u16) << 4)
     }
 
-    fn get_background_pattern_table_address(&self) -> u16 {
+    /// Returns the address of the current [pattern table] for background.
+    ///
+    /// Current [pattern table] addresses are defined in the register [PPUCTRL].
+    ///
+    /// [PPUCTRL]: https://wiki.nesdev.com/w/index.php/PPU_registers#PPUCTRL
+    /// [pattern table]: https://wiki.nesdev.com/w/index.php/PPU_pattern_tables
+    fn get_current_background_pattern_table_address(&self) -> u16 {
         ((self.ppuctrl & MASK_CONTROLLER_BACKGROUND_PATTERN_TABLE_ADDRESS) as u16) << 8
     }
 
-    fn get_sprite_pattern_table_address(&self) -> u16 {
+    /// Returns the address of the current [pattern table] for sprites.
+    ///
+    /// Current [pattern table] addresses are defined in the register [PPUCTRL].
+    ///
+    /// [PPUCTRL]: https://wiki.nesdev.com/w/index.php/PPU_registers#PPUCTRL
+    /// [pattern table]: https://wiki.nesdev.com/w/index.php/PPU_pattern_tables
+    fn get_current_sprite_pattern_table_address(&self) -> u16 {
         ((self.ppuctrl & MASK_CONTROLLER_SPRITE_PATTERN_TABLE_ADDRESS) as u16) << 8
     }
 
-    fn get_bg_pattern_tile_byte_address(&self) -> u16 {
-        let bg_pattern_table_address = self.get_background_pattern_table_address();
-        let bg_pattern_tile_address = self.get_pattern_table_tile_address(bg_pattern_table_address, self.latch_nametable);
+    /// Returns the next background tile's pattern byte's address.
+    fn get_next_background_pattern_tile_byte_address(&self) -> u16 {
+        let bg_pattern_table_address = self.get_current_background_pattern_table_address();
+        let bg_pattern_tile_address = self.get_pattern_table_tile_address(
+            bg_pattern_table_address,
+            self.latch_nametable);
         let (_, y) = self.get_next_tile_xy();
         let pattern_fine_y_offset = y & 0b0111;
         bg_pattern_tile_address | pattern_fine_y_offset
     }
 
-    fn fetch_low_bg_tile_byte(&mut self) {
-        self.latch_pattern_l = self.bus.read(self.get_bg_pattern_tile_byte_address()).reverse_bits();
+    /// Loads the lower background pattern latch with next value.
+    fn load_low_background_tile_byte_latch(&mut self) {
+        let address = self.get_next_background_pattern_tile_byte_address();
+        self.latch_background_pattern_low = self.bus.read(address).reverse_bits();
     }
 
-    fn fetch_high_bg_tile_byte(&mut self) {
-        self.latch_pattern_h = self.bus.read(self.get_bg_pattern_tile_byte_address() | 0x8).reverse_bits();
+    /// Loads the higher background pattern latch with next value.
+    fn load_high_background_tile_byte_latch(&mut self) {
+        let address = self.get_next_background_pattern_tile_byte_address() | 0x8;
+        self.latch_background_pattern_high = self.bus.read(address).reverse_bits();
     }
 
-    fn get_low_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u16) -> u8 {
-        let a = self.get_sprite_pattern_table_address();
-        let b = self.get_pattern_table_tile_address(a, pattern_index);
+    /// Returns sprite tile byte from current pattern_table when given the pattern index, sprite y, scanline y
+    fn get_sprite_tile_byte(&self, pattern_index: u8, sprite_y: u16, scanline_y: u16, high_plane: bool) -> u8 {
+        let sprite_pattern_table_address = self.get_current_sprite_pattern_table_address();
+        let sprite_address = self.get_pattern_table_tile_address(
+            sprite_pattern_table_address, pattern_index);
         if (sprite_y..sprite_y+8).contains(&scanline_y) {
-            let patter_fine_y_offset = scanline_y - sprite_y;
-            return self.bus.read(b | patter_fine_y_offset as u16).reverse_bits()
+            let pattern_fine_y_offset = scanline_y - sprite_y;
+            let mut sprite_tile_byte_address = sprite_address | pattern_fine_y_offset as u16;
+            if high_plane {
+                sprite_tile_byte_address |= 0x8;
+            }
+            return self.bus.read(sprite_tile_byte_address).reverse_bits()
         }
         0
     }
 
-    fn get_high_sprite_tile_byte(&mut self, pattern_index: u8, sprite_y: u16, scanline_y: u16) -> u8 {
-        let a = self.get_sprite_pattern_table_address();
-        let b = self.get_pattern_table_tile_address(a, pattern_index);
-        if (sprite_y..sprite_y+8).contains(&scanline_y) {
-            let patter_fine_y_offset = scanline_y - sprite_y;
-            return self.bus.read(b | patter_fine_y_offset as u16 | 0x8).reverse_bits()
-        }
-        0
-    }
-
-    pub fn get_tiles(&mut self, pattern_table_address: u16, colors: &mut Display) {
-        debug_assert!(colors.height == 128 && colors.width == 128);
-        let colors_grey = [
-            display::Color::new_rgb(0, 0, 0),
-            display::Color::new_rgb(85,85, 85),
-            display::Color::new_rgb(170, 170, 170),
-            display::Color::new_rgb(255, 255, 255)];
-
+    /// Loads each tile from given pattern table into given display.
+    ///
+    /// A tile is 8x8 matrix where each cell has value 0..=3.
+    /// Each value represents an index of a color in a palette.
+    /// There are no palettes because this is not a normal render pipeline,
+    /// therefore a greyscale palette is used.
+    pub fn load_pattern_table_tiles_to_display(&mut self, pattern_table_address: u16, display: &mut Display) {
+        debug_assert!(display.height == 128 && display.width == 128);
         for tile_row in 0x0..=0xf {
             for fine_y_offset in 0x0..=0x7 {
                 for tile_col in 0x0..=0xf {
@@ -622,7 +649,7 @@ impl Ppu {
                         let high_bit = (pattern_high >> shift) & 1;
                         let pattern = low_bit | (high_bit << 1);
                         let i: usize = ((tile_row as usize) << (10)) | ((fine_y_offset as usize) << (7)) | ((tile_col as usize) << 3) | x as usize;
-                        colors.set_pixel(i % 128, i / 128, colors_grey[pattern as usize]);
+                        display.set_pixel(i % 128, i / 128, palette::PALETTE_GREYSCALE[pattern as usize]);
                     }
                 }
             }

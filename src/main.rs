@@ -64,8 +64,8 @@ fn main() {
 
             // Update pattern table
 
-            ppu.get_tiles(0x0000, &mut pattern_table_0_pixels);
-            ppu.get_tiles(0x1000, &mut pattern_table_1_pixels);
+            ppu.load_pattern_table_tiles_to_display(0x0000, &mut pattern_table_0_pixels);
+            ppu.load_pattern_table_tiles_to_display(0x1000, &mut pattern_table_1_pixels);
 
 
             texture_pattern_table_0.update(None, pattern_table_0_pixels.get_pixels(), 128 * 3)
