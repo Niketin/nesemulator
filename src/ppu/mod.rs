@@ -33,6 +33,7 @@ pub struct Ppu {
     pub nmi_occurred: bool,
     pub nmi_output: bool,
     pub ppuaddr_upper_byte_next: bool,
+    ppudata_buffer: u8,
     shift_att_table: ShiftRegister,
     shift_pattern_l: ShiftRegister,
     shift_pattern_h: ShiftRegister,
@@ -77,6 +78,7 @@ impl Ppu {
             nmi_occurred: false,
             nmi_output: true,
             ppuaddr_upper_byte_next: true,
+            ppudata_buffer: 0,
             shift_att_table: ShiftRegister::new(2),
             shift_pattern_l: ShiftRegister::new(2),
             shift_pattern_h: ShiftRegister::new(2),
@@ -129,12 +131,30 @@ impl Ppu {
         self.ppustatus |= 0x80;
     }
 
+    /// Returns a buffered value from PPU's VRAM.
+    ///
+    /// Reads from PPUDATA are buffered.
+    /// The buffer is always updated with a new value and old value is returned.
+    ///
+    /// Reading from Palette addresses (0x3F00-0x3FFF) works bit differently than with other addresses (0x0000-0x3EFF).
+    /// In this case the buffer is updated normally but the return value is taken directly from the loaded palette.
+    /// More about it here [NESDEV]).
+    ///
+    /// [NESDEV]: https://wiki.nesdev.com/w/index.php/PPU_registers#:~:text=scrolling.-,The%20PPUDATA%20read%20buffer%20(post-fetch),-When
     pub fn read_ppudata(&mut self) -> u8 {
-        let result = self.bus.read(self.ppuaddr);
+        let mut result = self.ppudata_buffer;
+        self.ppudata_buffer = self.bus.read(self.ppuaddr);
+        if (0x3F00..=0x3FFF).contains(&self.ppuaddr) {
+            // Update the result with the newly updated buffer value that contains value from palette.
+            result = self.ppudata_buffer;
+            // Update the buffer with a value from VRAM address-0x1000
+            self.ppudata_buffer = self.bus.read(self.ppuaddr - 0x1000);
+        }
         self.ppuaddr += self.get_vram_address_increment();
         result
     }
 
+    /// Writes a value to VRAM
     pub fn write_ppudata(&mut self, value: u8) {
         self.bus.write(self.ppuaddr, value);
         self.ppuaddr += self.get_vram_address_increment();
