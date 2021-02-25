@@ -53,3 +53,34 @@ impl Color {
         Color { r, g, b }
     }
 }
+
+impl IntoIterator for Color {
+    type Item = u8;
+    type IntoIter = ColorIntoIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ColorIntoIterator {
+            color: self,
+            index: 0,
+        }
+    }
+}
+
+pub struct ColorIntoIterator {
+    color: Color,
+    index: usize,
+}
+
+impl Iterator for ColorIntoIterator {
+    type Item = u8;
+    fn next(&mut self) -> Option<u8> {
+        let result = match self.index {
+            0 => self.color.r,
+            1 => self.color.g,
+            2 => self.color.b,
+            _ => return None,
+        };
+        self.index += 1;
+        Some(result)
+    }
+}

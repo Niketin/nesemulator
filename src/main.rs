@@ -13,7 +13,7 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("nesemulator", 1536, 960)
+        .window("nesemulator", 1792, 960)
         .position_centered()
         .build()
         .unwrap();
@@ -38,9 +38,13 @@ fn main() {
     let mut texture_pattern_table_1 = texture_creator
         .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 128, 128)
         .unwrap();
+    let mut texture_palettes = texture_creator
+        .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 4, 8)
+        .unwrap();
     let game_rect = Some(sdl2::rect::Rect::new(0, 0, 1024, 960));
     let pattern_table_0_rect = Some(sdl2::rect::Rect::new(1024, 0, 512, 512));
     let pattern_table_1_rect = Some(sdl2::rect::Rect::new(1024, 512, 512, 512));
+    let palettes_rect = Some(sdl2::rect::Rect::new(1536, 0, 256, 512));
     let mut pattern_table_0_pixels = emulator::ppu::display::Display::new(128, 128);
     let mut pattern_table_1_pixels = emulator::ppu::display::Display::new(128, 128);
 
@@ -72,9 +76,13 @@ fn main() {
                 .expect("Main loop: failed to update the texture");
             texture_pattern_table_1.update(None, pattern_table_1_pixels.get_pixels(), 128 * 3)
                 .expect("Main loop: failed to update the texture");
+            texture_palettes.update(None, &ppu.get_current_palettes_raw(), 4 * 3)
+                .expect("Main loop: failed to update the texture");
             canvas.copy(&texture_pattern_table_0, None, pattern_table_0_rect)
                 .expect("Main loop: failed to copy the texture in to canvas: {}");
             canvas.copy(&texture_pattern_table_1, None, pattern_table_1_rect)
+                .expect("Main loop: failed to copy the texture in to canvas: {}");
+            canvas.copy(&texture_palettes, None, palettes_rect)
                 .expect("Main loop: failed to copy the texture in to canvas: {}");
 
             canvas.present();

@@ -3,6 +3,8 @@ pub mod display;
 pub mod palette;
 mod shift_register;
 
+use display::Color;
+
 use crate::ppu::bus::Bus;
 use crate::ppu::display::Display;
 use crate::ppu::palette::Palette;
@@ -676,5 +678,27 @@ impl Ppu {
                 }
             }
         }
+    }
+
+    fn get_current_palette(&mut self) -> Vec<Color> {
+        const PALETTE_COUNT: usize = 8;
+        const COLORS_IN_PALETTE: usize = 4;
+        const COLOR_COUNT: usize = PALETTE_COUNT*COLORS_IN_PALETTE;
+
+        let mut colors = Vec::new();
+        for color_index in 0x0..COLOR_COUNT {
+            let palette_number = color_index / PALETTE_COUNT;
+            let color_number = color_index % COLORS_IN_PALETTE;
+            let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
+            let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
+            let color = self.palette.get_color(color_number_in_big_palette as usize).clone();
+            colors.push(color);
+        }
+        colors
+    }
+
+    pub fn get_current_palettes_raw(&mut self) -> Vec<u8> {
+        let colors = self.get_current_palette();
+        colors.into_iter().map(|x| x.into_iter()).flatten().collect()
     }
 }

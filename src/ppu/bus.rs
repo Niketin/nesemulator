@@ -25,7 +25,7 @@ impl Bus {
             // TODO: move this (or at least 0x0000-0x2FFF) logic inside cartridge or mappers
             0x0000..=0x1FFF => cartridge.read_from_pattern_table(address), // Pattern table 0..1
             0x2000..=0x2FFF => cartridge.read_from_nametable(address, &self.vram), // Nametable 0..3
-            0x3000..=0x3EFF => unimplemented!(), // Mirrors of $2000-$2EFF
+            0x3000..=0x3EFF => unimplemented!(), // TODO Mirrors of $2000-$2EFF
             0x3F00..=0x3F1F => self.read_from_palette_ram(address - 0x3F00), // Palette RAM
             0x3F20..=0x3FFF => self.read_from_palette_ram(address - 0x3F00), // Palette RAM mirror
             _ => panic!("PPU bus: unknown address {:#x}", address),
