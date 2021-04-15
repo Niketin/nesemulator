@@ -158,7 +158,7 @@ impl Cpu {
 
     pub fn is_interrupted_by_nmi(&mut self) -> bool {
         match self.bus.ppu {
-            Some(ref mut ppu) => ppu.nmi(),
+            Some(ref mut ppu) => ppu.is_nmi(),
             None => false
         }
     }

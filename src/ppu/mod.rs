@@ -35,6 +35,7 @@ pub struct Ppu {
     pub nmi_occurred: bool,
     pub nmi_output: bool,
     pub ppuaddr_upper_byte_next: bool,
+    ppuaddr_upper_byte: u8,
     ppudata_buffer: u8,
     shift_att_table: ShiftRegister,
     shift_pattern_l: ShiftRegister,
@@ -80,6 +81,7 @@ impl Ppu {
             nmi_occurred: false,
             nmi_output: true,
             ppuaddr_upper_byte_next: true,
+            ppuaddr_upper_byte: 0,
             ppudata_buffer: 0,
             shift_att_table: ShiftRegister::new(2),
             shift_pattern_l: ShiftRegister::new(2),
@@ -108,10 +110,10 @@ impl Ppu {
 
     pub fn write_ppuaddr(&mut self, value: u8) {
         if self.ppuaddr_upper_byte_next {
-            self.ppuaddr = (value as u16) << 8;
+            self.ppuaddr_upper_byte = value;
             self.ppuaddr_upper_byte_next = false;
         } else {
-            self.ppuaddr |= value as u16;
+            self.ppuaddr = (self.ppuaddr_upper_byte as u16) << 8 | (value as u16);
             self.ppuaddr_upper_byte_next = true;
         }
     }
@@ -175,7 +177,7 @@ impl Ppu {
         }
     }
 
-    pub fn nmi(&mut self) -> bool {
+    pub fn is_nmi(&mut self) -> bool {
         // TODO: set some flag off? Is it needed?
         let nmi_occurred = self.nmi_occurred;
         self.nmi_occurred = false;
@@ -203,11 +205,16 @@ impl Ppu {
         }
 
         match self.y {
-            0..=239 => self.visible_scanline(),          // Visible scanlines
-            240 => (),                                   // Post-render scanline
+            0..=239 => { // Visible scanlines
+                self.visible_scanline();
+                self.fetch_stuff();
+            },
+            240 => (), // Post-render scanline
             241..=260 => self.vertical_blanking_lines(),
-            261 => {self.fetch_stuff();                  // Pre-render scanline
-                    self.vertical_blanking_lines();},
+            261 => { // Pre-render scanline
+                self.fetch_stuff();
+                self.vertical_blanking_lines();
+            },
             _ => unreachable!(),
         }
 
@@ -242,15 +249,17 @@ impl Ppu {
 
     fn fetch_match(&mut self) {
         match ((self.x - 1) % 8) + 1 {
-            1 => (), //
+            1 => (),
             2 => self.fetch_nametable_byte(),
             3 => (),
             4 => self.fetch_attribute_table_byte(),
             5 => (),
             6 => self.load_low_background_tile_byte_latch(),
             7 => (),
-            8 => {self.load_high_background_tile_byte_latch();
-                self.update_shift_registers_from_latches();},
+            8 => {
+                self.load_high_background_tile_byte_latch();
+                self.update_shift_registers_from_latches();
+            },
             _ => unreachable!(),
         }
     }
@@ -454,8 +463,6 @@ impl Ppu {
     }
 
     pub fn visible_scanline(&mut self) {
-        self.fetch_stuff();
-
         let mut sprite_color: Option<display::Color> = None;
         let show_sprites = (self.ppumask >> 4) & 1 == 1;
         if show_sprites && 1 <= self.x && self.x <= 256 {
@@ -528,7 +535,7 @@ impl Ppu {
         let pattern_h = self.shift_pattern_h.get() & 1;
         let color_number = (pattern_h << 1) | pattern_l;
         // attribute_shift is in format 0b0000_0rb0 where r is right and b is bottom.
-        let attribute_shift: u8 = ((self.x & 0x10) >> 3) as u8 | ((self.y & 0x10) >> 2) as u8;
+        let attribute_shift: u8 = (((self.x - 1) & 0x10) >> 3) as u8 | ((self.y & 0x10) >> 2) as u8;
         let att_entry = self.shift_att_table.get();
         let palette_number = (att_entry >> attribute_shift) & 0x03;
         let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
