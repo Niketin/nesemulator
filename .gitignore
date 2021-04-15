@@ -1,5 +1,4 @@
 /target
 **/*.rs.bk
 /.vscode
-/nes-test-roms
 /roms

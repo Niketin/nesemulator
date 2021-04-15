@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_official_opcodes_with_nestest() -> Result<(), std::io::Error> {
-        let rom_path = String::from("tests/nestest.nes");
+        let rom_path = String::from("tests/nes-test-roms/other/nestest.nes");
         let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(rom_path.clone())));
         let cpu_ram = cpu::ram::Ram::new(0x0800);
         let cpu_bus = cpu::bus::Bus::new(cpu_ram, cartridge.clone());
