@@ -123,7 +123,6 @@ impl Ppu {
         self.clear_vblank();
         self.nmi_occurred = false; // and this variable are kinda the same.
         self.ppuaddr_upper_byte_next = true;
-        self.ppuaddr = 0;
         status
     }
 
