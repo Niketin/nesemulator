@@ -4,7 +4,7 @@ use emulator::{Emulator, Button};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
-use std::env;
+use std::{env, time::Duration};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -24,8 +24,6 @@ fn main() {
     canvas.clear();
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
-
-    let mut waiting_to_render = true;
 
     let texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext> =
         canvas.texture_creator();
@@ -49,50 +47,37 @@ fn main() {
     let mut pattern_table_1_pixels = emulator::ppu::display::Display::new(128, 128);
 
     'running: loop {
-        emulator.step();
+        // Run emulator until a frame is ready.
+        emulator.step_frame();
+
+        // Update game screen
         let ppu = &mut emulator.cpu.bus.ppu.as_mut().unwrap();
+        let display = &ppu.display;
+        let pixels = display.get_pixels();
 
-        // Check if there is a need to render a frame
-        if ppu.y == 240 && waiting_to_render {
-            let display = &ppu.display;
+        texture_game.update(None, pixels, 256 * 3)
+            .expect("Main loop: failed to update the texture");
+        canvas.copy(&texture_game, None, game_rect)
+            .expect("Main loop: failed to copy the texture in to canvas: {}");
 
-            let _width = display.width;
-            let _height = display.height;
-            let pixels = display.get_pixels();
+        ppu.load_pattern_table_tiles_to_display(0x0000, &mut pattern_table_0_pixels);
+        ppu.load_pattern_table_tiles_to_display(0x1000, &mut pattern_table_1_pixels);
 
-            // Update game screen
-            texture_game.update(None, pixels, 256 * 3)
-                .expect("Main loop: failed to update the texture");
-            canvas.copy(&texture_game, None, game_rect)
-                .expect("Main loop: failed to copy the texture in to canvas: {}");
+        texture_pattern_table_0.update(None, pattern_table_0_pixels.get_pixels(), 128 * 3)
+            .expect("Main loop: failed to update the texture");
+        texture_pattern_table_1.update(None, pattern_table_1_pixels.get_pixels(), 128 * 3)
+            .expect("Main loop: failed to update the texture");
+        texture_palettes.update(None, &ppu.get_current_palettes_raw(), 4 * 3)
+            .expect("Main loop: failed to update the texture");
+        canvas.copy(&texture_pattern_table_0, None, pattern_table_0_rect)
+            .expect("Main loop: failed to copy the texture in to canvas: {}");
+        canvas.copy(&texture_pattern_table_1, None, pattern_table_1_rect)
+            .expect("Main loop: failed to copy the texture in to canvas: {}");
+        canvas.copy(&texture_palettes, None, palettes_rect)
+            .expect("Main loop: failed to copy the texture in to canvas: {}");
+        canvas.present();
 
-            // Update pattern table
-
-            ppu.load_pattern_table_tiles_to_display(0x0000, &mut pattern_table_0_pixels);
-            ppu.load_pattern_table_tiles_to_display(0x1000, &mut pattern_table_1_pixels);
-
-
-            texture_pattern_table_0.update(None, pattern_table_0_pixels.get_pixels(), 128 * 3)
-                .expect("Main loop: failed to update the texture");
-            texture_pattern_table_1.update(None, pattern_table_1_pixels.get_pixels(), 128 * 3)
-                .expect("Main loop: failed to update the texture");
-            texture_palettes.update(None, &ppu.get_current_palettes_raw(), 4 * 3)
-                .expect("Main loop: failed to update the texture");
-            canvas.copy(&texture_pattern_table_0, None, pattern_table_0_rect)
-                .expect("Main loop: failed to copy the texture in to canvas: {}");
-            canvas.copy(&texture_pattern_table_1, None, pattern_table_1_rect)
-                .expect("Main loop: failed to copy the texture in to canvas: {}");
-            canvas.copy(&texture_palettes, None, palettes_rect)
-                .expect("Main loop: failed to copy the texture in to canvas: {}");
-
-            canvas.present();
-            waiting_to_render = false;
-
-        }
-        if ppu.y == 241 {
-            waiting_to_render = true;
-        }
-
+        // Event loop.
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -105,8 +90,9 @@ fn main() {
                 _ => {}
             }
         }
-        // The rest of the game loop goes here...
-        //::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+
+        // Sleep 1/60th of a second.
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
 
