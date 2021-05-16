@@ -53,6 +53,17 @@ impl Emulator {
         ppu.step();
     }
 
+    // Run emulator steps until a frame is ready.
+    pub fn step_frame(&mut self) {
+        loop {
+            self.step();
+            let ppu = self.cpu.bus.ppu.as_ref().unwrap();
+            if ppu.y == 240 && (0..=2).contains(&ppu.x) {
+                break;
+            }
+        }
+    }
+
     pub fn set_controller_state(&mut self, button: Button, value: bool) {
         self.cpu.bus.controller.as_mut().map(|c| c.set_button_state(button, value));
     }
