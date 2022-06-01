@@ -69,7 +69,7 @@ impl Bus {
         let cartridge = self.cartridge.borrow();
         match address {
             0x2000..=0x2FFF => cartridge.write_to_nametable(address, &mut self.vram, value), // Nametable 0..3
-            _ => panic!(format!("PPU bus: should be called with address of range 0x2000..=0x2FFF. Was called with {:#x}", address)),
+            _ => panic!("PPU bus: should be called with address of range 0x2000..=0x2FFF. Was called with {:#x}", address),
         }
     }
 

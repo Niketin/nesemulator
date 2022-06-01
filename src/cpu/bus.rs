@@ -40,7 +40,7 @@ impl Bus {
             0x2008..=0x3FFF => self.read_ppu_register((address - 0x2008u16) % 0x0008u16 + 0x2000u16), // PPU registers (mirror)
             0x4000..=0x401F => self.read_apu_io_registers(address), // NES APU and I/O registers
             0x6000..=0xFFFF => self.cartridge.borrow().read_using_cpu_bus_address(address as usize), // Cartridge (PRG ROM, PRG RAM, and mapper)
-            _ => panic!(format!("CPU bus: unknown address {}", address)),
+            _ => panic!("CPU bus: unknown address {}", address),
         }
     }
 
@@ -54,7 +54,7 @@ impl Bus {
             0x2008..=0x3FFF => self.write_ppu_register((address - 0x2008u16) % 0x0008u16 + 0x2000u16, value), // PPU registers (mirror)
             0x4000..=0x401F => self.write_apu_io_registers(address, value), // NES APU and I/O registers
             0x6000..=0xFFFF => unimplemented!(), // Cartridge (PRG ROM, PRG RAM, and mapper)
-            _ => panic!(format!("CPU bus: unknown address {}", address)),
+            _ => panic!("CPU bus: unknown address {}", address),
         }
     }
 
@@ -85,7 +85,7 @@ impl Bus {
             0x2005 => ppu.ppuscroll = value,
             0x2006 => ppu.write_ppuaddr(value),
             0x2007 => ppu.write_ppudata(value),
-            _ => panic!(format!("CPU bus: unknown PPU register {}", address))
+            _ => panic!("CPU bus: unknown PPU register {}", address)
         };
     }
 
