@@ -27,3 +27,9 @@ impl Palette {
         &self.colors[index]
     }
 }
+
+impl Default for Palette {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -388,7 +388,6 @@ impl Ppu {
             if y_in_range {
                 self.oam_copying_sprite = true;
                 self.oam_primary_m += 1;
-                return;
             }
             else {
                 self.oam_primary_n += 1;
@@ -482,7 +481,7 @@ impl Ppu {
                 let color_address = (palette_number << 2) + pattern;
 
                 let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-                let color =  self.palette.get_color(color_number_in_big_palette as usize).clone();
+                let color =  *self.palette.get_color(color_number_in_big_palette as usize);
 
                 sprite_color = Some(color);
                 break;
@@ -496,14 +495,12 @@ impl Ppu {
             let background_color = if show_background {
                 self.get_background_color()
             } else {
-                self.palette.get_color(0).clone()
+                *self.palette.get_color(0)
             };
 
-            let color = if sprite_color.is_some() {
-                sprite_color.unwrap()
-            }
-            else {
-                background_color
+            let color = match sprite_color {
+                Some(c) => c,
+                None => background_color,
             };
 
             self.display.set_pixel(
@@ -539,7 +536,7 @@ impl Ppu {
         let palette_number = (att_entry >> attribute_shift) & 0x03;
         let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
         let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-        return self.palette.get_color(color_number_in_big_palette as usize).clone();
+        *self.palette.get_color(color_number_in_big_palette as usize)
     }
 
     fn fetch_nametable_byte(&mut self) {
@@ -697,7 +694,7 @@ impl Ppu {
             let color_number = color_index % COLORS_IN_PALETTE;
             let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
             let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-            let color = self.palette.get_color(color_number_in_big_palette as usize).clone();
+            let color = *self.palette.get_color(color_number_in_big_palette as usize);
             colors.push(color);
         }
         colors
@@ -705,6 +702,6 @@ impl Ppu {
 
     pub fn get_current_palettes_raw(&mut self) -> Vec<u8> {
         let colors = self.get_current_palette();
-        colors.into_iter().map(|x| x.into_iter()).flatten().collect()
+        colors.into_iter().flat_map(|x| x.into_iter()).collect()
     }
 }

@@ -1,5 +1,6 @@
 use super::Cpu;
 
+#[allow(clippy::upper_case_acronyms)]
 pub enum Instruction {
     Invalid,
     ADC, AND, ASL, BCC, BCS, BEQ, BIT,
@@ -266,7 +267,7 @@ impl Cpu {
     pub fn nop(&mut self, _address: u16) {}
 
     pub fn ora(&mut self, address: u16) {
-        self.accumulator = self.read_8(address) | self.accumulator;
+        self.accumulator |= self.read_8(address);
         self.status.zero = self.accumulator == 0;
         self.status.negative = self.accumulator & 0x80 == 0x80;
         if self.page_crossed { self.skip_cycles += 1; }

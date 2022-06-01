@@ -58,11 +58,10 @@ impl Bus {
 
     fn mirror_palette_ram_address(&self, address: u16) -> u16 {
         let mirrored_address = address % 0x20;
-        let mirrored_address = match mirrored_address {
+        match mirrored_address {
             0x10 | 0x14 | 0x18 | 0x1C => mirrored_address - 0x10,
             _ => mirrored_address,
-        };
-        mirrored_address
+        }
     }
 
     fn write_name_table(&mut self, address: u16, value: u8) {

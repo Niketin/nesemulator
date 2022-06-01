@@ -22,10 +22,10 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new(path: &String) -> Emulator {
+    pub fn new(path: &str) -> Emulator {
         // Some test code
     
-        let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(path.clone())));
+        let cartridge = Rc::new(RefCell::new(Cartridge::new_from_file(path.to_owned())));
         let ppu_bus = ppu::bus::Bus::new(cartridge.clone());
         
         let ppu = Ppu::new(ppu_bus);
@@ -65,7 +65,7 @@ impl Emulator {
     }
 
     pub fn set_controller_state(&mut self, button: Button, value: bool) {
-        self.cpu.bus.controller.as_mut().map(|c| c.set_button_state(button, value));
+        if let Some(c) = self.cpu.bus.controller.as_mut() { c.set_button_state(button, value) }
     }
     
 }

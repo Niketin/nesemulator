@@ -177,3 +177,9 @@ impl Cartridge {
         vram.write(address as usize - offset, value);
     }
 }
+
+impl Default for Cartridge {
+    fn default() -> Self {
+        Self::new()
+    }
+}

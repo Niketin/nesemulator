@@ -106,7 +106,7 @@ impl Bus {
             0x4000..=0x4013 => (), // TODO Implement
             0x4014 => self.oamdma(value),
             0x4015 => (), // TODO Implement
-            0x4016 => { self.controller.as_mut().map(|c| c.write(value)); },
+            0x4016 => { if let Some(c) = self.controller.as_mut() { c.write(value)} },
             0x4017..=0x401f => (), // TODO Implement
             _ => unreachable!()
         }

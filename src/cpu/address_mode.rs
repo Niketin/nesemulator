@@ -44,7 +44,7 @@ impl Cpu {
 
         let byte_low = self.read_8(address) as u16;
         let byte_high = self.read_8((address & 0xFF00) | (address.wrapping_add(1) & 0x00FF)) as u16;
-        return byte_low | (byte_high << 8);
+        byte_low | (byte_high << 8)
     }
 
     pub fn ind_x(&mut self) -> u16 {

@@ -51,7 +51,7 @@ impl Status {
         let mut result: u8 = self.negative as u8;
         result = (result << 1) | self.overflow as u8;
         result = (result << 1) | 1;
-        result = (result << 1) | 0;
+        result <<= 1;
         result = (result << 1) | self.decimal as u8;
         result = (result << 1) | self.interrupt as u8;
         result = (result << 1) | self.zero as u8;
@@ -89,8 +89,7 @@ impl Cpu {
         let lower_byte = self.bus.read(address) as u16;
         let higher_byte = self.bus.read(address + 1) as u16;
         let a = higher_byte << 8;
-        let b = lower_byte | a;
-        b
+        lower_byte | a
     }
 
     fn write_8(&mut self, address: u16, value: u8) {
@@ -185,7 +184,7 @@ impl Cpu {
     }
 
     fn crossing_page(&mut self, address_1: u16, address_2: u16) -> bool {
-        return address_1 & 0xFF00 != address_2 & 0xFF00
+        address_1 & 0xFF00 != address_2 & 0xFF00
     }
 
     fn execute_address_mode(&mut self, address_mode: &address_mode::AddressMode) -> u16 {
