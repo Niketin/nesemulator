@@ -47,6 +47,7 @@ fn main() {
     let mut pattern_table_1_pixels = emulator::ppu::display::Display::new(128, 128);
 
     'running: loop {
+        let time_frame_start = std::time::Instant::now();
         // Run emulator until a frame is ready.
         emulator.step_frame();
 
@@ -91,8 +92,12 @@ fn main() {
             }
         }
 
-        // Sleep 1/60th of a second.
-        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        // Sleep 1/60th of a second minus the time it takes to render a frame.
+        let time_frame_end = std::time::Instant::now();
+        let time_per_frame = Duration::new(0, 1_000_000_000u32 / 60);
+        let time_elapsed = time_frame_end - time_frame_start;
+        let time_sleep = time_per_frame.saturating_sub(time_elapsed);
+        std::thread::sleep(time_sleep);
     }
 }
 
