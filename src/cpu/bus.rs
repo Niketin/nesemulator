@@ -82,7 +82,7 @@ impl Bus {
             0x2002 => ppu.ppustatus = value,
             0x2003 => ppu.oamaddr = value,
             0x2004 => ppu.oamdata = value,
-            0x2005 => ppu.ppuscroll = value,
+            0x2005 => ppu.write_ppuscroll(value),
             0x2006 => ppu.write_ppuaddr(value),
             0x2007 => ppu.write_ppudata(value),
             _ => panic!("CPU bus: unknown PPU register {}", address)
