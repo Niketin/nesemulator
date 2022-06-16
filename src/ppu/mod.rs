@@ -111,19 +111,19 @@ impl Ppu {
     }
 
     fn get_coarse_x_scroll(&self) -> u16 {
-        return self.n_v & 0x001f
+        self.n_v & 0x001f
     }
 
     fn get_coarse_y_scroll(&self) -> u16 {
-        return (self.n_v >> 5) & 0x001f
+        (self.n_v >> 5) & 0x001f
     }
 
     fn _get_nametable_select(&self) -> u16 {
-        return (self.n_v >> 10) & 0x0003
+        (self.n_v >> 10) & 0x0003
     }
 
     fn get_fine_y_scroll(&self) -> u16 {
-        return (self.n_v >> 12) & 0x0007
+        (self.n_v >> 12) & 0x0007
     }
 
     fn coarse_x_increment(&mut self) {
@@ -182,7 +182,7 @@ impl Ppu {
             self.n_t |= value as u16 >> 3;
             self.n_x = value as u16 & 0x07;
         } else {
-            self.n_t &= 0b00001100_00011111;
+            self.n_t &= 0b0000_1100_0001_1111;
             self.n_t |= ((value as u16) & 0xf8) << 2;
             self.n_t |= ((value as u16) & 0x07) << 12;
         }
@@ -427,7 +427,6 @@ impl Ppu {
         if self.x % 8 == 0 && ((8..=248).contains(&self.x) || (328..=336).contains(&self.x)) {
             // Inc. hori(v)
             self.coarse_x_increment();
-            return;
         }
     }
 
