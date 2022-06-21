@@ -265,7 +265,7 @@ impl Ppu {
         // TODO: set some flag off? Is it needed?
         let nmi_occurred = self.nmi_occurred;
         self.nmi_occurred = false;
-        nmi_occurred
+        nmi_occurred && self.nmi_output
     }
 
     pub fn write_oamdma(&mut self, value: u8) {
