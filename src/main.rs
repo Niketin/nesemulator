@@ -13,7 +13,7 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("nesemulator", 1792, 960)
+        .window("nesemulator", 1792 + 512, 960)
         .position_centered()
         .build()
         .unwrap();
@@ -39,12 +39,19 @@ fn main() {
     let mut texture_palettes = texture_creator
         .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 4, 8)
         .unwrap();
+    let mut texture_nametables = texture_creator
+        .create_texture_streaming(sdl2::pixels::PixelFormatEnum::RGB24, 512, 480)
+        .unwrap();
     let game_rect = Some(sdl2::rect::Rect::new(0, 0, 1024, 960));
     let pattern_table_0_rect = Some(sdl2::rect::Rect::new(1024, 0, 512, 512));
     let pattern_table_1_rect = Some(sdl2::rect::Rect::new(1024, 512, 512, 512));
     let palettes_rect = Some(sdl2::rect::Rect::new(1536, 0, 256, 512));
     let mut pattern_table_0_pixels = emulator::ppu::display::Display::new(128, 128);
     let mut pattern_table_1_pixels = emulator::ppu::display::Display::new(128, 128);
+    let nametables_rect = Some(sdl2::rect::Rect::new(1792, 0, 512, 480));
+    let mut nametables_pixels = emulator::ppu::display::Display::new(512, 480);
+
+
 
     'running: loop {
         let time_frame_start = std::time::Instant::now();
@@ -52,7 +59,7 @@ fn main() {
         emulator.step_frame();
 
         // Update game screen
-        let ppu = &mut emulator.cpu.bus.ppu.as_mut().unwrap();
+        let ppu = emulator.cpu.bus.ppu.as_mut().unwrap();
         let display = &ppu.display;
         let pixels = display.get_pixels();
 
@@ -64,17 +71,24 @@ fn main() {
         ppu.load_pattern_table_tiles_to_display(0x0000, &mut pattern_table_0_pixels);
         ppu.load_pattern_table_tiles_to_display(0x1000, &mut pattern_table_1_pixels);
 
+        ppu.load_nametable_tiles_to_display(&mut nametables_pixels);
+
         texture_pattern_table_0.update(None, pattern_table_0_pixels.get_pixels(), 128 * 3)
             .expect("Main loop: failed to update the texture");
         texture_pattern_table_1.update(None, pattern_table_1_pixels.get_pixels(), 128 * 3)
             .expect("Main loop: failed to update the texture");
         texture_palettes.update(None, &ppu.get_current_palettes_raw(), 4 * 3)
             .expect("Main loop: failed to update the texture");
+        texture_nametables.update(None, nametables_pixels.get_pixels(), 512 * 3)
+            .expect("Main loop: failed to update the texture");
+
         canvas.copy(&texture_pattern_table_0, None, pattern_table_0_rect)
             .expect("Main loop: failed to copy the texture in to canvas: {}");
         canvas.copy(&texture_pattern_table_1, None, pattern_table_1_rect)
             .expect("Main loop: failed to copy the texture in to canvas: {}");
         canvas.copy(&texture_palettes, None, palettes_rect)
+            .expect("Main loop: failed to copy the texture in to canvas: {}");
+        canvas.copy(&texture_nametables, None, nametables_rect)
             .expect("Main loop: failed to copy the texture in to canvas: {}");
         canvas.present();
 
