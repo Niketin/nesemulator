@@ -799,4 +799,45 @@ impl Ppu {
         let colors = self.get_current_palette();
         colors.into_iter().flat_map(|x| x.into_iter()).collect()
     }
+
+    /// Loads each tile from given name table into given display.
+    ///
+    /// A tile is 8x8 matrix where each cell has value 0..=3.
+    /// Each value represents an index of a color in a palette.
+    /// There are no palettes because this is not a normal render pipeline,
+    /// therefore a greyscale palette is used.
+    pub fn load_nametable_tiles_to_display(&mut self, display: &mut Display) {
+        debug_assert!(display.height == 480 && display.width == 512);
+
+        let pattern_table_address = self.get_current_background_pattern_table_address();
+
+        for nametable_address_base in vec![0x2000, 0x2400, 0x2800, 0x2c00] {
+            let nametable_xi = (nametable_address_base & 0x0400) >> 10; // 0 or 1
+            let nametable_yi = (nametable_address_base & 0x0800) >> 11; // 0 or 1
+            let pixel_offset_x = (256 * nametable_xi) as usize;
+            let pixel_offset_y = (240 * nametable_yi) as usize;
+
+            for tile_index in 0..(32*30) {
+                let nametable_address  = nametable_address_base + tile_index;
+                let pattern_index = self.bus.read(nametable_address) as u16;
+
+                let nametable_tile_coarse_y = (nametable_address >> 5) & 0x001f;
+                let nametable_tile_coarse_x = nametable_address & 0x001f;
+
+                for fine_y_offset in 0..=7u16 {
+                    let pattern_address = pattern_table_address | (pattern_index << 4) | fine_y_offset as u16;
+                    let pattern_low = self.bus.read(pattern_address);
+                    let pattern_high = self.bus.read(pattern_address | 0b0000_1000);
+                    for fine_x_offset in 0..=7u16 {
+                        let shift = 7 - fine_x_offset;
+                        let low_bit = (pattern_low >> shift) & 1;
+                        let high_bit = (pattern_high >> shift) & 1;
+                        let pattern = low_bit | (high_bit << 1);
+                        let i: usize = ((nametable_tile_coarse_y << 11) | (fine_y_offset << 8) | (nametable_tile_coarse_x << 3) | fine_x_offset) as usize;
+                        display.set_pixel(i % 256 + pixel_offset_x, i / 256 + pixel_offset_y, palette::PALETTE_GREYSCALE[pattern as usize]);
+                    }
+                }
+            }
+        }
+    }
 }
