@@ -785,7 +785,7 @@ impl Ppu {
 
         let mut colors = Vec::new();
         for color_index in 0x0..COLOR_COUNT {
-            let palette_number = color_index / PALETTE_COUNT;
+            let palette_number = color_index / COLORS_IN_PALETTE;
             let color_number = color_index % COLORS_IN_PALETTE;
             let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
             let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
