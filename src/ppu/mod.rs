@@ -249,7 +249,7 @@ impl Ppu {
     pub fn write_ppuctrl(&mut self, value: u8) {
         self.nmi_output = (value & 0x80) == 0x80;
         self.ppuctrl = value;
-        self.n_t &= !0xc0;
+        self.n_t &= !0x0c00;
         self.n_t |= ((value & 0x03) as u16) << 10;
     }
 
