@@ -217,6 +217,14 @@ impl Ppu {
         self.ppustatus |= 0x80;
     }
 
+    fn set_sprite_0_hit(&mut self) {
+        self.ppustatus |= 0x40;
+    }
+
+    fn clear_sprite_0_hit(&mut self) {
+        self.ppustatus &= !0x40;
+    }
+
     /// Returns a buffered value from PPU's VRAM.
     ///
     /// Reads from PPUDATA are buffered.
@@ -298,6 +306,9 @@ impl Ppu {
             261 => { // Pre-render scanline
                 self.fetch_stuff();
                 self.vertical_blanking_lines();
+                if self.x == 1 {
+                    self.clear_sprite_0_hit();
+                }
             },
             _ => unreachable!(),
         }
@@ -590,6 +601,8 @@ impl Ppu {
     pub fn visible_scanline(&mut self) {
         let mut sprite_color: Option<display::Color> = None;
         let show_sprites = (self.ppumask >> 4) & 1 == 1;
+
+        let mut sprite_color_number = None;
         if show_sprites && 1 <= self.x && self.x <= 256 {
             // "render"
             for (i, counter) in self.oam_counters.iter().enumerate() {
@@ -602,13 +615,14 @@ impl Ppu {
                 if pattern == 0 {
                     continue;
                 }
+                sprite_color_number = Some(pattern);
 
                 let attribute = self.oam_latches[i];
                 let palette_number = (attribute & 0x3) + 4;
                 let color_address = (palette_number << 2) + pattern;
 
                 let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-                let color =  *self.palette.get_color(color_number_in_big_palette as usize);
+                let color =  self.palette.get_color(color_number_in_big_palette as usize);
 
                 sprite_color = Some(color);
                 break;
@@ -618,11 +632,18 @@ impl Ppu {
         if 1 <= self.x && self.x <= 256 {
             let show_background = (self.ppumask >> 3) & 1 == 1;
 
-            let background_color = if show_background {
+            let (background_color, background_color_number) = if show_background {
                 self.get_background_color()
             } else {
-                *self.palette.get_color(0) //TODO change get_color to return a copy of the color
+                (self.palette.get_color(0), 0)
             };
+
+            // Check for sprite 0 hit
+            if show_background {
+                if sprite_color_number.is_some() && background_color_number != 0 {
+                    self.set_sprite_0_hit();
+                }
+            }
 
             let color = match sprite_color {
                 Some(c) => c,
@@ -651,8 +672,7 @@ impl Ppu {
         }
     }
 
-    fn get_background_color(&self) -> display::Color {
-        //TODO Apply scrolling somehow
+    fn get_background_color(&self) -> (display::Color, u8) {
         debug_assert!(1<= self.x && self.x <= 256);
         let pattern_l = self.shift_pattern_l.get() & 1;
         let pattern_h = self.shift_pattern_h.get() & 1;
@@ -663,7 +683,7 @@ impl Ppu {
         let palette_number = (att_entry >> attribute_shift) & 0x03;
         let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
         let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-        *self.palette.get_color(color_number_in_big_palette as usize)
+        (self.palette.get_color(color_number_in_big_palette as usize), color_number)
     }
 
     fn fetch_nametable_byte(&mut self) {
@@ -789,7 +809,7 @@ impl Ppu {
             let color_number = color_index % COLORS_IN_PALETTE;
             let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
             let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-            let color = *self.palette.get_color(color_number_in_big_palette as usize);
+            let color = self.palette.get_color(color_number_in_big_palette as usize);
             colors.push(color);
         }
         colors
