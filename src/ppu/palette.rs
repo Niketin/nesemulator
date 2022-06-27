@@ -22,9 +22,9 @@ impl Palette {
         Palette { colors}
     }
 
-    pub fn get_color(&self, index: usize) -> &Color {
+    pub fn get_color(&self, index: usize) -> Color {
         debug_assert!(index < 0x40);
-        &self.colors[index]
+        self.colors[index]
     }
 }
 
