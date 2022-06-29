@@ -1,15 +1,20 @@
 extern crate sdl2;
 
 use emulator::{Emulator, Button};
+use log::{debug, info};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
-use std::{env, time::Duration};
+use std::{env, time::Duration, collections::HashMap};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut emulator = Emulator::new(&args[1]);
     let sdl_context = sdl2::init().unwrap();
+
+    let controller_subsystem = sdl_context.game_controller().unwrap();
+    let mut gamepads = HashMap::new();
+
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
@@ -101,6 +106,26 @@ fn main() {
                     ..
                 } => break 'running,
 
+                Event::ControllerDeviceAdded { which, ..} => {
+                    info!("Gamepad added index={}", which);
+                    let gamepad = controller_subsystem.open(which).unwrap();
+                    gamepads.insert(which, gamepad);
+                },
+                Event::ControllerDeviceRemoved{ which, ..} => {
+                    info!("Gamepad removed index={}", which);
+                    gamepads.remove(&(which as u32));
+                },
+
+                Event::ControllerButtonDown {which, button, ..} => {
+                    debug!("Controller button down index={} button={:?}", which, button);
+                    handle_emulator_input(event, &mut emulator);
+                },
+
+                Event::ControllerButtonUp {which, button, ..} => {
+                    debug!("Controller button up index={} button={:?}", which, button);
+                    handle_emulator_input(event, &mut emulator);
+                },
+
                 Event::KeyDown {..} | Event::KeyUp {..} => handle_emulator_input(event, &mut emulator),
                 _ => {}
             }
@@ -116,10 +141,11 @@ fn main() {
 }
 
 fn handle_emulator_input(event: Event, emulator: &mut Emulator) {
-    let value = match event {
+    let button_down = match event {
         Event::KeyDown { repeat: true, ..} => return,
         Event::KeyUp { repeat: true, ..} => return,
         Event::KeyDown {..} => true,
+        Event::ControllerButtonDown { .. } => true,
         _ => false,
     };
 
@@ -141,8 +167,27 @@ fn handle_emulator_input(event: Event, emulator: &mut Emulator) {
         Event::KeyUp { keycode: Some(Keycode::Down), .. } => Button::Down,
         Event::KeyUp { keycode: Some(Keycode::Left), .. } => Button::Left,
         Event::KeyUp { keycode: Some(Keycode::Right), .. } => Button::Right,
+
+        Event::ControllerButtonDown { button: sdl2::controller::Button::A, .. } => Button::A,
+        Event::ControllerButtonDown { button: sdl2::controller::Button::B, .. } => Button::B,
+        Event::ControllerButtonDown { button: sdl2::controller::Button::Start, .. } => Button::Start,
+        Event::ControllerButtonDown { button: sdl2::controller::Button::Back, .. } => Button::Select,
+        Event::ControllerButtonDown { button: sdl2::controller::Button::DPadUp, .. } => Button::Up,
+        Event::ControllerButtonDown { button: sdl2::controller::Button::DPadDown, .. } => Button::Down,
+        Event::ControllerButtonDown { button: sdl2::controller::Button::DPadLeft, .. } => Button::Left,
+        Event::ControllerButtonDown { button: sdl2::controller::Button::DPadRight, .. } => Button::Right,
+
+        Event::ControllerButtonUp { button: sdl2::controller::Button::A, .. } => Button::A,
+        Event::ControllerButtonUp { button: sdl2::controller::Button::B, .. } => Button::B,
+        Event::ControllerButtonUp { button: sdl2::controller::Button::Start, .. } => Button::Start,
+        Event::ControllerButtonUp { button: sdl2::controller::Button::Back, .. } => Button::Select,
+        Event::ControllerButtonUp { button: sdl2::controller::Button::DPadUp, .. } => Button::Up,
+        Event::ControllerButtonUp { button: sdl2::controller::Button::DPadDown, .. } => Button::Down,
+        Event::ControllerButtonUp { button: sdl2::controller::Button::DPadLeft, .. } => Button::Left,
+        Event::ControllerButtonUp { button: sdl2::controller::Button::DPadRight, .. } => Button::Right,
+
         _ => return
     };
 
-    emulator.set_controller_state(button, value);
+    emulator.set_controller_state(button, button_down);
 }
