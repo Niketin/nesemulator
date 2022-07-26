@@ -639,10 +639,8 @@ impl Ppu {
             };
 
             // Check for sprite 0 hit
-            if show_background {
-                if sprite_color_number.is_some() && background_color_number != 0 {
-                    self.set_sprite_0_hit();
-                }
+            if show_background && sprite_color_number.is_some() && background_color_number != 0 {
+                self.set_sprite_0_hit();
             }
 
             let color = match sprite_color {
@@ -831,7 +829,7 @@ impl Ppu {
 
         let pattern_table_address = self.get_current_background_pattern_table_address();
 
-        for nametable_address_base in vec![0x2000, 0x2400, 0x2800, 0x2c00] {
+        for nametable_address_base in &[0x2000, 0x2400, 0x2800, 0x2c00] {
             let nametable_xi = (nametable_address_base & 0x0400) >> 10; // 0 or 1
             let nametable_yi = (nametable_address_base & 0x0800) >> 11; // 0 or 1
             let pixel_offset_x = (256 * nametable_xi) as usize;
