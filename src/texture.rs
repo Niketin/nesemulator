@@ -1,4 +1,4 @@
-use egui::{epaint::ImageDelta, ColorImage, ImageData};
+use egui::{epaint::ImageDelta, ColorImage, ImageData, TextureFilter};
 use itertools::Itertools;
 
 pub struct Texture {
@@ -7,6 +7,7 @@ pub struct Texture {
     pub image_data: Vec<u8>,
     pub bytes_per_pixel: usize,
     pub gl_texture_id: gl::types::GLuint,
+    pub filter: TextureFilter,
 }
 
 impl Drop for Texture {
@@ -18,11 +19,16 @@ impl Drop for Texture {
 }
 
 impl Texture {
-    pub fn new(image_data: Vec<u8>, width: usize, height: usize, bytes_per_pixel: usize) -> Self {
+    pub fn new(image_data: Vec<u8>, width: usize, height: usize, bytes_per_pixel: usize, filter: TextureFilter) -> Self {
         let mut gl_texture_id: gl::types::GLuint = 0;
         unsafe {
             gl::GenTextures(1, &mut gl_texture_id);
         }
+
+        let texture_filter = match filter {
+            TextureFilter::Nearest => gl::NEAREST,
+            TextureFilter::Linear => gl::LINEAR,
+        };
 
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D, gl_texture_id);
@@ -40,12 +46,12 @@ impl Texture {
             gl::TexParameteri(
                 gl::TEXTURE_2D,
                 gl::TEXTURE_MIN_FILTER,
-                gl::LINEAR_MIPMAP_LINEAR as gl::types::GLint,
+                texture_filter as gl::types::GLint,
             );
             gl::TexParameteri(
                 gl::TEXTURE_2D,
                 gl::TEXTURE_MAG_FILTER,
-                gl::LINEAR as gl::types::GLint,
+                texture_filter as gl::types::GLint,
             );
 
             gl::TexImage2D(
@@ -69,6 +75,7 @@ impl Texture {
             bytes_per_pixel,
             image_data,
             gl_texture_id,
+            filter,
         }
     }
 
@@ -86,15 +93,15 @@ impl Texture {
                 .collect(),
         };
 
-        Self::new(image_data, width, height, bytes_per_pixel)
+        Self::new(image_data, width, height, bytes_per_pixel, image_delta.filter)
     }
 
-    pub fn new_empty(width: usize, height: usize) -> Self {
+    pub fn new_empty(width: usize, height: usize, filter: egui::TextureFilter) -> Self {
         let image_data: Vec<u8> = vec![[0u8, 0u8, 0u8, 1u8]; width * height]
             .into_iter()
             .flatten()
             .collect_vec();
-        Self::new(image_data, width, height, 4)
+        Self::new(image_data, width, height, 4, filter)
     }
     pub fn update(&mut self, image_delta: ImageDelta) {
         self.bytes_per_pixel = 4;
