@@ -26,7 +26,7 @@ trait CustomTexture {
 
 impl CustomTexture for TextureIdContainer {
     fn init(&'static self, painter: &mut Painter, width: usize, height: usize) {
-        let texture = Texture::new_empty(width, height);
+        let texture = Texture::new_empty(width, height, egui::TextureFilter::Nearest);
         self.with(|t| {
             t.borrow_mut()
                 .get_or_insert_with(|| painter.register_native_texture(texture));
@@ -255,15 +255,15 @@ impl Gui {
             } = egui_context.run(inputs_to_egui, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        self.ui_custom_texture_panel(ui, &TEXTURE_GAME);
+                        self.ui_custom_texture_panel(ui, 2.0, &TEXTURE_GAME);
                         ui.vertical(|ui| {
-                            self.ui_custom_texture_panel(ui, &TEXTURE_PATTERN_TABLE_0);
-                            self.ui_custom_texture_panel(ui, &TEXTURE_PATTERN_TABLE_1);
+                            self.ui_custom_texture_panel(ui, 1.0, &TEXTURE_PATTERN_TABLE_0);
+                            self.ui_custom_texture_panel(ui, 1.0, &TEXTURE_PATTERN_TABLE_1);
                         });
 
                         ui.vertical(|ui| {
-                            self.ui_custom_texture_panel(ui, &TEXTURE_PALETTES);
-                            self.ui_custom_texture_panel(ui, &TEXTURE_NAMETABLES);
+                            self.ui_custom_texture_panel(ui, 10.0, &TEXTURE_PALETTES);
+                            self.ui_custom_texture_panel(ui, 1.0, &TEXTURE_NAMETABLES);
                         });
                     });
                 });
@@ -290,12 +290,12 @@ impl Gui {
         }
     }
 
-    fn ui_custom_texture_panel(&mut self, ui: &mut egui::Ui, texture: &'static TextureIdContainer) {
+    fn ui_custom_texture_panel(&mut self, ui: &mut egui::Ui, scale: f32, texture: &'static TextureIdContainer) {
         let [width, height] = texture.dimensions(&self.painter);
 
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
             let (rect, _response) = ui.allocate_exact_size(
-                Vec2::new(width, height),
+                Vec2::new(width * scale, height * scale),
                 egui::Sense::focusable_noninteractive(),
             );
             let cb = CallbackFn::new(move |_info, painter| {
