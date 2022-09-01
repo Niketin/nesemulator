@@ -2,7 +2,7 @@ extern crate sdl2;
 
 use egui::{Pos2, RawInput, Rect, Vec2};
 use emulator::ppu::display::Display;
-use emulator::{Button, CallbackFn, Emulator, Painter, Texture};
+use emulator::{Button, Emulator};
 use log::{debug, info};
 use sdl2::controller::GameController;
 use sdl2::event::Event;
@@ -10,6 +10,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::video::GLProfile;
 use sdl2::video::{GLContext, Window};
 use sdl2::{Sdl, VideoSubsystem};
+use sdl2_egui::{CallbackFn, Painter, Texture};
 use std::sync::Arc;
 use std::{cell::RefCell, collections::HashMap, env, time::Duration};
 
@@ -88,7 +89,7 @@ impl Gui {
         gl::load_with(|s| video_subsystem.gl_get_proc_address(s) as *const std::os::raw::c_void);
 
         let painter = Painter::new(DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, 1.0);
-
+        
         Self {
             emulator,
             sdl_context,
@@ -124,6 +125,11 @@ impl Gui {
         let mut pixels_nametables = Display::new(512, 480);
 
         let mut event_pump = self.sdl_context.event_pump().unwrap();
+
+        let mut show_pattern_table_0: bool = true;
+        let mut show_pattern_table_1: bool = true;
+        let mut show_palettes: bool = true;
+        let mut show_nametables: bool = true;
 
         'running: loop {
             let time_frame_start = std::time::Instant::now();
@@ -253,18 +259,29 @@ impl Gui {
                 textures_delta,
                 shapes,
             } = egui_context.run(inputs_to_egui, |ctx| {
+                egui::SidePanel::left("Settings").show(ctx, |ui| {
+                    ui.checkbox(&mut show_pattern_table_0, "Show pattern table 0");
+                    ui.checkbox(&mut show_pattern_table_1, "Show pattern table 1");
+                    ui.checkbox(&mut show_palettes, "Show palettes");
+                    ui.checkbox(&mut show_nametables, "Show nametables");
+                });
                 egui::CentralPanel::default().show(ctx, |ui| {
                     ui.horizontal(|ui| {
                         self.ui_custom_texture_panel(ui, 2.0, &TEXTURE_GAME);
-                        ui.vertical(|ui| {
-                            self.ui_custom_texture_panel(ui, 1.0, &TEXTURE_PATTERN_TABLE_0);
-                            self.ui_custom_texture_panel(ui, 1.0, &TEXTURE_PATTERN_TABLE_1);
-                        });
-
-                        ui.vertical(|ui| {
-                            self.ui_custom_texture_panel(ui, 10.0, &TEXTURE_PALETTES);
+                        if show_nametables {
                             self.ui_custom_texture_panel(ui, 1.0, &TEXTURE_NAMETABLES);
-                        });
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        if show_pattern_table_0 {
+                            self.ui_custom_texture_panel(ui, 2.0, &TEXTURE_PATTERN_TABLE_0);
+                        }
+                        if show_pattern_table_1 {
+                            self.ui_custom_texture_panel(ui, 2.0, &TEXTURE_PATTERN_TABLE_1);
+                        }
+                        if show_palettes {
+                            self.ui_custom_texture_panel(ui, 24.0, &TEXTURE_PALETTES);
+                        }
                     });
                 });
             });
@@ -290,7 +307,12 @@ impl Gui {
         }
     }
 
-    fn ui_custom_texture_panel(&mut self, ui: &mut egui::Ui, scale: f32, texture: &'static TextureIdContainer) {
+    fn ui_custom_texture_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        scale: f32,
+        texture: &'static TextureIdContainer,
+    ) {
         let [width, height] = texture.dimensions(&self.painter);
 
         egui::Frame::canvas(ui.style()).show(ui, |ui| {

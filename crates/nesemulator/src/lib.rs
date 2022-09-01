@@ -1,10 +1,7 @@
 mod cartridge;
 mod controller;
 pub mod cpu;
-mod painter;
 pub mod ppu;
-pub mod render_gl;
-pub mod texture;
 
 use crate::cartridge::Cartridge;
 use crate::controller::Controller;
@@ -12,8 +9,6 @@ use crate::cpu::Cpu;
 use crate::ppu::Ppu;
 
 pub use crate::controller::Button;
-pub use crate::painter::{CallbackFn, Painter};
-pub use crate::texture::Texture;
 
 use std::cell::RefCell;
 use std::rc::Rc;

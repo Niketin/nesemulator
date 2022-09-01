@@ -33,11 +33,11 @@ pub struct Painter {
 impl Painter {
     pub fn new(screen_width: u32, screen_height: u32, pixels_per_point: f32) -> Self {
         let vert_shader = render_gl::Shader::from_vert_source(
-            &CString::new(include_str!("triangle.vert")).unwrap(),
+            &CString::new(include_str!("shader/triangle.vert")).unwrap(),
         )
         .unwrap();
         let frag_shader = render_gl::Shader::from_frag_source(
-            &CString::new(include_str!("triangle.frag")).unwrap(),
+            &CString::new(include_str!("shader/triangle.frag")).unwrap(),
         )
         .unwrap();
 
