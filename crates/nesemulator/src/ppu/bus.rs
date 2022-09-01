@@ -48,12 +48,15 @@ impl Bus {
 
     fn write_to_palette_ram(&mut self, address: u16, value: u8) {
         let mirrored_address = self.mirror_palette_ram_address(address);
+        //TODO: Not sure if backdrop applies to writing.
+        //let backdrop_checked_address = self.backdrop_address(mirrored_address);
         self.palette_ram.write(mirrored_address as usize, value);
     }
 
-    fn read_from_palette_ram(& self, address: u16) -> u8 {
+    fn read_from_palette_ram(&self, address: u16) -> u8 {
         let mirrored_address = self.mirror_palette_ram_address(address);
-        self.palette_ram.read(mirrored_address as usize)
+        let backdrop_checked_address = self.backdrop_address(mirrored_address);
+        self.palette_ram.read(backdrop_checked_address as usize)
     }
 
     fn mirror_palette_ram_address(&self, address: u16) -> u16 {
@@ -61,6 +64,14 @@ impl Bus {
         match mirrored_address {
             0x10 | 0x14 | 0x18 | 0x1C => mirrored_address - 0x10,
             _ => mirrored_address,
+        }
+    }
+    
+    #[inline]
+    fn backdrop_address(&self, address: u16) -> u16 {
+        match address {
+            0x04 | 0x08 | 0x0C | 0x10 => 0x00,
+            _ => address,
         }
     }
 
