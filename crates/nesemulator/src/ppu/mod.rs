@@ -413,7 +413,6 @@ impl Ppu {
     }
 
     fn update_xy(&mut self) {
-
         if self.x == 256 {
             // Inc. vert(v)
             self.y_increment();
@@ -672,8 +671,9 @@ impl Ppu {
 
     fn get_background_color(&self) -> (display::Color, u8) {
         debug_assert!(1<= self.x && self.x <= 256);
-        let pattern_l = self.shift_pattern_l.get() & 1;
-        let pattern_h = self.shift_pattern_h.get() & 1;
+        let shift_amount = self.fine_x_scroll & 0x07;
+        let pattern_l = (self.shift_pattern_l.get() >> shift_amount) & 1;
+        let pattern_h = (self.shift_pattern_h.get() >> shift_amount) & 1;
         let color_number = (pattern_h << 1) | pattern_l;
         // attribute_shift is in format 0b0000_0rb0 where r is right and b is bottom.
         let attribute_shift: u8 = (((self.x - 1) & 0x10) >> 3) as u8 | ((self.y & 0x10) >> 2) as u8;
