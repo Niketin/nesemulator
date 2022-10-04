@@ -38,11 +38,14 @@ pub struct Ppu {
     pub nmi_occurred: bool,
     pub nmi_output: bool,
     ppudata_buffer: u8,
-    shift_att_table: ShiftRegister,
+    shift_attribute_l: ShiftRegister,
+    shift_attribute_h: ShiftRegister,
     shift_pattern_l: ShiftRegister,
     shift_pattern_h: ShiftRegister,
     latch_nametable: u8,
-    latch_attribute: u8,
+    latch_attribute_l: u8,
+    latch_attribute_h: u8,
+    attribute_byte: u8,
     latch_background_pattern_high: u8,
     latch_background_pattern_low: u8,
     oam_primary: [u8; 256],
@@ -85,11 +88,14 @@ impl Ppu {
             nmi_occurred: false,
             nmi_output: true,
             ppudata_buffer: 0,
-            shift_att_table: ShiftRegister::new(2),
+            shift_attribute_l: ShiftRegister::new(1),
+            shift_attribute_h: ShiftRegister::new(1),
             shift_pattern_l: ShiftRegister::new(2),
             shift_pattern_h: ShiftRegister::new(2),
             latch_nametable: 0,
-            latch_attribute: 0,
+            latch_attribute_l: 0,
+            latch_attribute_h: 0,
+            attribute_byte: 0,
             latch_background_pattern_high: 0,
             latch_background_pattern_low: 0,
             oam_primary: [0; 256],
@@ -110,12 +116,12 @@ impl Ppu {
         }
     }
 
-    fn get_coarse_x_scroll(&self) -> u16 {
-        self.v & 0x001f
+    fn get_coarse_x_scroll(&self) -> u8 {
+        (self.v & 0b0001_1111) as u8
     }
 
-    fn get_coarse_y_scroll(&self) -> u16 {
-        (self.v >> 5) & 0x001f
+    fn get_coarse_y_scroll(&self) -> u8 {
+        ((self.v >> 5) & 0b0001_1111) as u8
     }
 
     fn _get_nametable_select(&self) -> u16 {
@@ -142,7 +148,7 @@ impl Ppu {
         }
         else {
             self.v &= !0x7000;
-            let mut y = self.get_coarse_y_scroll();
+            let mut y = self.get_coarse_y_scroll() as u16;
             if y == 29 {
                 y = 0;
                 self.v ^= 0x0800;
@@ -364,16 +370,27 @@ impl Ppu {
         }
     }
 
-    fn update_shift_registers_from_latches(&mut self) {
-        self.shift_att_table.shift_bytes();
-        self.shift_att_table.set(self.latch_attribute);
-        self.shift_pattern_l.set(self.latch_background_pattern_low);
-        self.shift_pattern_h.set(self.latch_background_pattern_high);
-    }
-
-    fn shift_patterns(&mut self) {
+    fn shift_registers(&mut self) {
         self.shift_pattern_l.shift_bits();
         self.shift_pattern_h.shift_bits();
+        self.shift_attribute_l.shift_bits();
+        self.shift_attribute_h.shift_bits();
+        self.shift_attribute_l.set_msb(self.latch_attribute_l);
+        self.shift_attribute_h.set_msb(self.latch_attribute_h);
+    }
+
+    fn update_shift_registers_from_latches(&mut self) {
+        // Update attribute shift registers with a new bit
+        let attribute_shift_by_2 = self.get_coarse_x_scroll() & 0b10;
+        let attribute_shift_by_4 = (self.get_coarse_y_scroll() & 0b10) << 1;
+        let attribute_shift = attribute_shift_by_2 | attribute_shift_by_4;
+        let attribute_bits = (self.attribute_byte >> attribute_shift) & 0b11;
+        self.latch_attribute_l = attribute_bits & 1;
+        self.latch_attribute_h = (attribute_bits >> 1) & 1;
+
+        // Update pattern shift registers with a new byte
+        self.shift_pattern_l.set(self.latch_background_pattern_low);
+        self.shift_pattern_h.set(self.latch_background_pattern_high);
     }
 
     fn fetch_stuff(&mut self) {
@@ -390,7 +407,7 @@ impl Ppu {
         match self.x {
             0 => (), // TODO: is this ok? x: 0 y: 0 should be skipped every odd cycle?
             1..=256 => {
-                self.shift_patterns();
+                self.shift_registers();
                 self.fetch_match();
             },
             257 => {
@@ -400,7 +417,7 @@ impl Ppu {
                 self.oamaddr = 0; // "Set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible scanlines" https://www.nesdev.org/wiki/PPU_registers#OAMADDR
             },
             321..=336 => {
-                self.shift_patterns();
+                self.shift_registers();
                 self.fetch_match();
             },
             337..=340 => (),
@@ -670,16 +687,22 @@ impl Ppu {
     }
 
     fn get_background_color(&self) -> (display::Color, u8) {
+        //TODO change this to return only the index of a color and refactor the caller to work with indices of colors, decide which color to fetch from the palette based on priority etc.
         debug_assert!(1<= self.x && self.x <= 256);
-        let shift_amount = self.fine_x_scroll & 0x07;
+        let shift_amount = self.fine_x_scroll & 0x07; //TODO: Probably unnecessary & 0x07 as it
+                                                           //should be quaranteed
+        //let shift_amount = 0;
         let pattern_l = (self.shift_pattern_l.get() >> shift_amount) & 1;
         let pattern_h = (self.shift_pattern_h.get() >> shift_amount) & 1;
         let color_number = (pattern_h << 1) | pattern_l;
+
         // attribute_shift is in format 0b0000_0rb0 where r is right and b is bottom.
-        let attribute_shift: u8 = (((self.x - 1) & 0x10) >> 3) as u8 | ((self.y & 0x10) >> 2) as u8;
-        let att_entry = self.shift_att_table.get();
-        let palette_number = (att_entry >> attribute_shift) & 0x03;
-        let color_address: u16 = ((palette_number as u16) << 2) | color_number as u16;
+        //let attribute_shift: u8 = (((self.x - 1) & 0x10) >> 3) as u8 | ((self.y & 0x10) >> 2) as u8;
+        let att_l = (self.shift_attribute_l.get() >> shift_amount) & 1;
+        let att_h = (self.shift_attribute_h.get() >> shift_amount) & 1;
+        let palette_number = (att_h << 1) | att_l;
+        //let palette_number = (att_entry >> attribute_shift) & 0x03;
+        let color_address = (palette_number << 2) | color_number;
         let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
         (self.palette.get_color(color_number_in_big_palette as usize), color_number)
     }
@@ -693,7 +716,7 @@ impl Ppu {
     fn fetch_attribute_table_byte(&mut self) {
         let address = self.get_attribute_address();
         let att_entry = self.bus.read(address);
-        self.latch_attribute = att_entry;
+        self.attribute_byte = att_entry;
     }
 
     /// Returns the address of the given tile in the given pattern table.
