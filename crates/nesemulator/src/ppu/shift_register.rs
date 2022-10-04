@@ -15,8 +15,20 @@ impl ShiftRegister {
         *self.inner_vec.first().expect("ShiftRegister should never be empty")
     }
 
+    pub fn get_at(&self, index: usize) -> Option<u8> {
+        self.inner_vec.get(index).copied()
+    }
+
     pub fn set(&mut self, value: u8) {
         if let Some(x) = self.inner_vec.last_mut() { *x = value };
+    }
+
+    // Sets most significant bit
+    pub fn set_msb(&mut self, value: u8) {
+        if let Some(x) = self.inner_vec.last_mut() {
+            *x &= 0b0111_1111;
+            *x |= value << 7;
+        };
     }
 
     pub fn shift_bytes(&mut self) {
