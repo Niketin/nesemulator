@@ -615,12 +615,10 @@ impl Ppu {
     }
 
     pub fn visible_scanline(&mut self) {
-        let mut sprite_color: Option<display::Color> = None;
         let show_sprites = (self.ppumask >> 4) & 1 == 1;
 
-        let mut sprite_color_number = None;
+        let mut sprite_color_index = 0;
         if show_sprites && 1 <= self.x && self.x <= 256 {
-            // "render"
             for (i, counter) in self.oam_counters.iter().enumerate() {
                 if *counter != 0 {
                     continue;
@@ -631,16 +629,10 @@ impl Ppu {
                 if pattern == 0 {
                     continue;
                 }
-                sprite_color_number = Some(pattern);
 
                 let attribute = self.oam_latches[i];
                 let palette_number = (attribute & 0x3) + 4;
-                let color_address = (palette_number << 2) + pattern;
-
-                let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-                let color =  self.palette.get_color(color_number_in_big_palette as usize);
-
-                sprite_color = Some(color);
+                sprite_color_index = (palette_number << 2) + pattern;
                 break;
             }
         }
@@ -648,21 +640,27 @@ impl Ppu {
         if 1 <= self.x && self.x <= 256 {
             let show_background = (self.ppumask >> 3) & 1 == 1;
 
-            let (background_color, background_color_number) = if show_background {
-                self.get_background_color()
+            let background_color_index = if show_background {
+                self.get_background_color_index()
             } else {
-                (self.palette.get_color(0), 0)
+                0
             };
 
             // Check for sprite 0 hit
-            if show_background && sprite_color_number.is_some() && background_color_number != 0 {
+            if show_background && sprite_color_index != 0 && background_color_index != 0 {
                 self.set_sprite_0_hit();
             }
 
-            let color = match sprite_color {
-                Some(c) => c,
-                None => background_color,
+            // Prioritize sprite over background
+            // TODO implement proper priority
+            let color_index = if sprite_color_index != 0 {
+                sprite_color_index
+            } else {
+                background_color_index
             };
+
+            let color_number_in_big_palette = self.bus.read(0x3F00 + color_index as u16);
+            let color =  self.palette.get_color(color_number_in_big_palette as usize);
 
             self.display.set_pixel(
                 (self.x - 1) as usize,
@@ -686,25 +684,20 @@ impl Ppu {
         }
     }
 
-    fn get_background_color(&self) -> (display::Color, u8) {
-        //TODO change this to return only the index of a color and refactor the caller to work with indices of colors, decide which color to fetch from the palette based on priority etc.
+    fn get_background_color_index(&self) -> u8 {
         debug_assert!(1<= self.x && self.x <= 256);
-        let shift_amount = self.fine_x_scroll & 0x07; //TODO: Probably unnecessary & 0x07 as it
-                                                           //should be quaranteed
-        //let shift_amount = 0;
+
+        let shift_amount = self.fine_x_scroll & 0x07;
+
         let pattern_l = (self.shift_pattern_l.get() >> shift_amount) & 1;
         let pattern_h = (self.shift_pattern_h.get() >> shift_amount) & 1;
         let color_number = (pattern_h << 1) | pattern_l;
 
-        // attribute_shift is in format 0b0000_0rb0 where r is right and b is bottom.
-        //let attribute_shift: u8 = (((self.x - 1) & 0x10) >> 3) as u8 | ((self.y & 0x10) >> 2) as u8;
         let att_l = (self.shift_attribute_l.get() >> shift_amount) & 1;
         let att_h = (self.shift_attribute_h.get() >> shift_amount) & 1;
         let palette_number = (att_h << 1) | att_l;
-        //let palette_number = (att_entry >> attribute_shift) & 0x03;
-        let color_address = (palette_number << 2) | color_number;
-        let color_number_in_big_palette = self.bus.read(0x3F00 + color_address as u16);
-        (self.palette.get_color(color_number_in_big_palette as usize), color_number)
+
+        (palette_number << 2) | color_number
     }
 
     fn fetch_nametable_byte(&mut self) {
